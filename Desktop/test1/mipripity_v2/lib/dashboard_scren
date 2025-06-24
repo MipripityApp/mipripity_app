@@ -1,0 +1,5 @@
+// This file is a placeholder. Please use dashboard_screen.dart instead.
+// This file will be removed in a future update.
+
+// Redirect to the proper file
+export 'dashboard_screen.dart';
