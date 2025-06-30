@@ -1,4 +1,3 @@
-import 'package:flutter/foundation.dart';
 
 /// Extended User model with additional fields for the onboarding process
 class UserExtended {

@@ -1,6 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:mipripity/invest_screen.dart';
+import 'package:mipripity/screens/onboarding/agency_details_screen.dart';
+import 'package:mipripity/screens/onboarding/interest_screen.dart';
+import 'package:mipripity/screens/onboarding/personal_info_screen.dart';
+import 'package:mipripity/screens/onboarding/profile_photo_screen.dart';
+import 'package:mipripity/screens/onboarding/review_screen.dart';
 import 'home_screen.dart';
 import 'login_screen.dart';
 import 'dashboard_screen.dart';
@@ -26,6 +31,7 @@ import 'get_coordinate_screen.dart';
 import 'settings_screen.dart';
 import 'investment_vendor_form.dart';
 import 'forgot_password_screen.dart';
+
 
 void main() async {
   // Ensure Flutter bindings are initialized
@@ -91,6 +97,16 @@ class MyApp extends StatelessWidget {
         '/get-coordinate': (context) => const GetCoordinateScreen(),
         '/settings': (context) => const SettingsScreen(),
         '/register': (context) => const RegisterScreen(),
+        '/onboarding': (context) => const OnboardingWrapper(userData: {}),
+        '/location-details': (context) => const LocationDetails(locationId: 'default'),
+        '/property-details': (context) => const PropertyDetails(propertyId: 'default'),
+        '/material-details': (context) => const MaterialDetails(materialId: 'default'),
+        '/skill-worker-details': (context) => const SkillWorkerDetails(workerId: 'default'),
+        '/personal-info': (context) => const PersonalInfoScreen(),
+        '/interest-screen': (context) => const InterestScreen(),
+        '/agency-details': (context) => const AgencyDetailsScreen(),
+        '/profile-photo': (context) => const ProfilePhotoScreen(),
+        '/review': (context) => const ReviewScreen(),
         '/forgot-password': (context) => const ForgotPasswordScreen(),
         '/investment-vendor-form': (context) => const InvestmentVendorForm(),
         '/map-view': (context) => const MapView(

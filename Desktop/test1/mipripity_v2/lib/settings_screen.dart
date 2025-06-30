@@ -4,7 +4,6 @@ import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'shared/bottom_navigation.dart';
 import 'services/user_service.dart';
-import 'models/user.dart';
 import 'providers/user_provider.dart';
 
 class SettingsScreen extends StatefulWidget {
@@ -19,7 +18,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
   final UserService _userService = UserService();
   
   // Settings state - matches database fields
-  Map<String, dynamic> _userSettings = {
+  final Map<String, dynamic> _userSettings = {
     // Notification preferences
     'push_notifications': true,
     'email_notifications': true, 
@@ -196,7 +195,7 @@ Future<void> _loadUserData() async {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Unable to load user data. Please check your connection and try again.'),
+            content: const Text('Unable to load user data. Please check your connection and try again.'),
             backgroundColor: Colors.red,
             action: SnackBarAction(
               label: 'Retry',

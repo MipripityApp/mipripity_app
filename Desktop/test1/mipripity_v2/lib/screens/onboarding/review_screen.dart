@@ -87,10 +87,10 @@ class _ReviewScreenState extends State<ReviewScreen> with SingleTickerProviderSt
     final isSmallScreen = size.width < 600;
     
     if (user == null) {
-      return Scaffold(
+      return const Scaffold(
         body: Center(
           child: CircularProgressIndicator(
-            color: const Color(0xFFF39322),
+            color: Color(0xFFF39322),
           ),
         ),
       );

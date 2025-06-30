@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'utils/currency_formatter.dart'; // Import for CurrencyFormatter
 
 // Data models for filter options
 class StateWithLGAs {
@@ -435,13 +436,11 @@ class _FilterFormState extends State<FilterForm> with SingleTickerProviderStateM
                                         color: Color(0xFF000080),
                                       ),
                                     ),
-                                    Text(
-                                      '₦${_formatPrice(_filterValues['maxPrice'])}',
-                                      style: const TextStyle(
-                                        fontSize: 16,
-                                        fontWeight: FontWeight.bold,
-                                        color: Color(0xFFF39322),
-                                      ),
+                                    _getNairaRichText(
+                                      _filterValues['maxPrice'],
+                                      fontSize: 16.0,
+                                      fontWeight: FontWeight.bold,
+                                      textColor: const Color(0xFFF39322),
                                     ),
                                   ],
                                 ),
@@ -562,6 +561,24 @@ class _FilterFormState extends State<FilterForm> with SingleTickerProviderStateM
       return '${(price / 1000).toStringAsFixed(0)}K';
     }
     return price.toStringAsFixed(0);
+  }
+  
+  // Get RichText with CustomFont for Naira symbol
+  Widget _getNairaRichText(double price, {Color textColor = const Color(0xFFF39322), double fontSize = 16.0, FontWeight fontWeight = FontWeight.bold}) {
+    return CurrencyFormatter.formatNairaRichText(
+      price,
+      textStyle: TextStyle(
+        fontSize: fontSize,
+        fontWeight: fontWeight,
+        color: textColor,
+      ),
+      symbolStyle: CurrencyFormatter.getNairaTextStyle(
+        fontSize: fontSize,
+        fontWeight: fontWeight,
+        color: textColor,
+      ),
+      useAbbreviations: true,
+    );
   }
 
   // Show dialog to edit budget
@@ -955,19 +972,17 @@ class _FilterFormState extends State<FilterForm> with SingleTickerProviderStateM
           child: Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Text(
-                '₦${_formatPrice(_filterValues['minPrice'] as double? ?? 0)}',
-                style: TextStyle(
-                  fontSize: 12,
-                  color: Colors.grey[600],
-                ),
+              _getNairaRichText(
+                _filterValues['minPrice'] as double? ?? 0,
+                fontSize: 12.0,
+                fontWeight: FontWeight.normal,
+                textColor: Colors.grey[600]!,
               ),
-              Text(
-                '₦${_formatPrice(_filterValues['maxPrice'] as double? ?? 100000000)}',
-                style: TextStyle(
-                  fontSize: 12,
-                  color: Colors.grey[600],
-                ),
+              _getNairaRichText(
+                _filterValues['maxPrice'] as double? ?? 100000000,
+                fontSize: 12.0,
+                fontWeight: FontWeight.normal,
+                textColor: Colors.grey[600]!,
               ),
             ],
           ),
@@ -1088,19 +1103,17 @@ class _FilterFormState extends State<FilterForm> with SingleTickerProviderStateM
           child: Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Text(
-                '₦${_formatPrice(_filterValues['minPrice'] as double? ?? 0)}',
-                style: TextStyle(
-                  fontSize: 12,
-                  color: Colors.grey[600],
-                ),
+              _getNairaRichText(
+                _filterValues['minPrice'] as double? ?? 0,
+                fontSize: 12.0,
+                fontWeight: FontWeight.normal,
+                textColor: Colors.grey[600]!,
               ),
-              Text(
-                '₦${_formatPrice(_filterValues['maxPrice'] as double? ?? 100000000)}',
-                style: TextStyle(
-                  fontSize: 12,
-                  color: Colors.grey[600],
-                ),
+              _getNairaRichText(
+                _filterValues['maxPrice'] as double? ?? 100000000,
+                fontSize: 12.0,
+                fontWeight: FontWeight.normal,
+                textColor: Colors.grey[600]!,
               ),
             ],
           ),
@@ -1248,19 +1261,17 @@ class _FilterFormState extends State<FilterForm> with SingleTickerProviderStateM
           child: Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Text(
-                '₦${_formatPrice(_filterValues['minPrice'] as double? ?? 0)}',
-                style: TextStyle(
-                  fontSize: 12,
-                  color: Colors.grey[600],
-                ),
+              _getNairaRichText(
+                _filterValues['minPrice'] as double? ?? 0,
+                fontSize: 12.0,
+                fontWeight: FontWeight.normal,
+                textColor: Colors.grey[600]!,
               ),
-              Text(
-                '₦${_formatPrice(_filterValues['maxPrice'] as double? ?? 100000000)}',
-                style: TextStyle(
-                  fontSize: 12,
-                  color: Colors.grey[600],
-                ),
+              _getNairaRichText(
+                _filterValues['maxPrice'] as double? ?? 100000000,
+                fontSize: 12.0,
+                fontWeight: FontWeight.normal,
+                textColor: Colors.grey[600]!,
               ),
             ],
           ),
@@ -1380,19 +1391,17 @@ class _FilterFormState extends State<FilterForm> with SingleTickerProviderStateM
           child: Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Text(
-                '₦${_formatPrice(_filterValues['minPrice'] as double? ?? 0)}',
-                style: TextStyle(
-                  fontSize: 12,
-                  color: Colors.grey[600],
-                ),
+              _getNairaRichText(
+                _filterValues['minPrice'] as double? ?? 0,
+                fontSize: 12.0,
+                fontWeight: FontWeight.normal,
+                textColor: Colors.grey[600]!,
               ),
-              Text(
-                '₦${_formatPrice(_filterValues['maxPrice'] as double? ?? 1000000)}',
-                style: TextStyle(
-                  fontSize: 12,
-                  color: Colors.grey[600],
-                ),
+              _getNairaRichText(
+                _filterValues['maxPrice'] as double? ?? 1000000,
+                fontSize: 12.0,
+                fontWeight: FontWeight.normal,
+                textColor: Colors.grey[600]!,
               ),
             ],
           ),

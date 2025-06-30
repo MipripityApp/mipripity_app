@@ -2,6 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
 import 'utils/currency_formatter.dart';
+import 'screens/schedule_visit_screen.dart';
+import 'screens/contact_agent_screen.dart';
+import 'agent_profile_screen.dart';
 
 // Format price to Nigerian Naira with comma separators
 String formatFullPrice(num amount) {
@@ -582,52 +585,82 @@ class _PropertyDetailsState extends State<PropertyDetails> {
                         ),
                       ],
                     ),
-                    child: Row(
+                    child: Column(
                       children: [
-                        Container(
-                          width: 70,
-                          height: 70,
-                          decoration: BoxDecoration(
-                            shape: BoxShape.circle,
-                            border: Border.all(
-                              color: const Color(0xFFF39322),
-                              width: 2,
+                        Row(
+                          children: [
+                            Container(
+                              width: 70,
+                              height: 70,
+                              decoration: BoxDecoration(
+                                shape: BoxShape.circle,
+                                border: Border.all(
+                                  color: const Color(0xFFF39322),
+                                  width: 2,
+                                ),
+                                image: DecorationImage(
+                                  image: (propertyData?['lister_dp'] != null &&
+                                          propertyData!['lister_dp']
+                                              .toString()
+                                              .startsWith('http'))
+                                      ? NetworkImage(propertyData!['lister_dp'])
+                                      : const AssetImage(
+                                              'assets/images/mipripity.png')
+                                          as ImageProvider,
+                                  fit: BoxFit.cover,
+                                ),
+                              ),
                             ),
-                            image: DecorationImage(
-                              image: (propertyData?['lister_dp'] != null &&
-                                      propertyData!['lister_dp']
-                                          .toString()
-                                          .startsWith('http'))
-                                  ? NetworkImage(propertyData!['lister_dp'])
-                                  : const AssetImage(
-                                          'assets/images/mipripity.png')
-                                      as ImageProvider,
-                              fit: BoxFit.cover,
+                            const SizedBox(width: 16),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    propertyData?['lister_name'] ?? 'Unknown',
+                                    style: const TextStyle(
+                                      fontSize: 16,
+                                      fontWeight: FontWeight.bold,
+                                      color: Color(0xFF000080),
+                                    ),
+                                  ),
+                                  const SizedBox(height: 4),
+                                  Text(
+                                    propertyData?['lister_email'] ?? '',
+                                    style: TextStyle(
+                                      fontSize: 14,
+                                      color: Colors.grey[600],
+                                    ),
+                                  ),
+                                ],
+                              ),
                             ),
-                          ),
+                          ],
                         ),
-                        const SizedBox(width: 16),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                propertyData?['lister_name'] ?? 'Unknown',
-                                style: const TextStyle(
-                                  fontSize: 16,
-                                  fontWeight: FontWeight.bold,
-                                  color: Color(0xFF000080),
+                        const SizedBox(height: 12),
+                        SizedBox(
+                          width: double.infinity,
+                          child: ElevatedButton.icon(
+                            onPressed: () {
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (context) => AgentProfileScreen(
+                                    email: propertyData?['lister_email']?.toString() ?? '',
+                                  ),
                                 ),
+                              );
+                            },
+                            icon: const Icon(Icons.person, size: 18),
+                            label: const Text('View Profile'),
+                            style: ElevatedButton.styleFrom(
+                              foregroundColor: Colors.white,
+                              backgroundColor: const Color(0xFF000080),
+                              padding: const EdgeInsets.symmetric(vertical: 12),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(8),
                               ),
-                              const SizedBox(height: 4),
-                              Text(
-                                propertyData?['lister_email'] ?? '',
-                                style: TextStyle(
-                                  fontSize: 14,
-                                  color: Colors.grey[600],
-                                ),
-                              ),
-                            ],
+                            ),
                           ),
                         ),
                       ],
@@ -804,10 +837,10 @@ class _PropertyDetailsState extends State<PropertyDetails> {
             Expanded(
               child: OutlinedButton(
                 onPressed: () {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                      content: Text('Schedule Visit feature coming soon!'),
-                      duration: Duration(seconds: 2),
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => ScheduleVisitScreen(propertyData: propertyData!),
                     ),
                   );
                 },
@@ -826,10 +859,10 @@ class _PropertyDetailsState extends State<PropertyDetails> {
             Expanded(
               child: ElevatedButton(
                 onPressed: () {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                      content: Text('Contact Agent feature coming soon!'),
-                      duration: Duration(seconds: 2),
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => ContactAgentScreen(propertyData: propertyData!),
                     ),
                   );
                 },

@@ -22,7 +22,7 @@ class _PersonalInfoScreenState extends State<PersonalInfoScreen> with SingleTick
   String _selectedState = '';
   String _selectedLGA = '';
   
-  List<String> _genderOptions = ['Male', 'Female', 'Other', 'Prefer not to say'];
+  final List<String> _genderOptions = ['Male', 'Female', 'Other', 'Prefer not to say'];
   List<String> _stateOptions = [];
   List<String> _lgaOptions = [];
   

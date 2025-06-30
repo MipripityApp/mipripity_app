@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../providers/onboarding_provider.dart';
-import '../../models/user_extended.dart';
 import 'interest_screen.dart';
 import 'personal_info_screen.dart';
 import 'agency_details_screen.dart';
