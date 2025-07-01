@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
+import 'api/investment_api.dart';
 import 'shared/bottom_navigation.dart';
+import 'dart:convert';
 
 // Define investment model class
 class Investment {
@@ -18,6 +20,26 @@ class Investment {
   final int totalAmount;
   final List<String> images;
   final List<String> features;
+
+factory Investment.fromJson(Map<String, dynamic> json) {
+  return Investment(
+    id: json['id'],
+    title: json['title'],
+    location: json['location'],
+    description: json['description'],
+    realtorName: json['realtorName'],
+    realtorImage: json['realtorImage'],
+    minInvestment: json['minInvestment'],
+    expectedReturn: json['expectedReturn'],
+    duration: json['duration'],
+    investors: json['investors'],
+    remainingAmount: json['remainingAmount'],
+    totalAmount: json['totalAmount'],
+    images: List<String>.from(json['images'] ?? []),
+    features: List<String>.from(json['features'] ?? []),
+  );
+}
+
 
   Investment({
     required this.id,
@@ -60,65 +82,16 @@ class _InvestInRealEstateState extends State<InvestInRealEstate> {
 
   final searchController = TextEditingController();
 
-  @override
-  void initState() {
-    super.initState();
-    // Initialize sample investments
-    investments = sampleInvestments;
-    filteredInvestments = investments;
-  }
-
-  // Sample investments data
-  List<Investment> sampleInvestments = [
-    Investment(
-      id: "inv-001",
-      title: "Oceanview Luxury Apartments",
-      location: "Banana Island, Lagos",
-      description: "Premium luxury apartments with ocean views and top-tier amenities. High rental demand in a prime tourist destination.",
-      realtorName: "Garuda Property",
-      realtorImage: "https://content.jdmagicbox.com/comp/mysore/i1/0821px821.x821.230614200542.e3i1/catalogue/garuda-properties-kuvempunagar-mysore-estate-agents-xg25231joc.jpg",
-      minInvestment: 500000,
-      expectedReturn: "12-15% annually",
-      duration: "1-5 years",
-      investors: 47,
-      remainingAmount: 250000,
-      totalAmount: 2000000,
-      images: ["https://b2435771.smushcdn.com/2435771/wp-content/uploads/2023/10/Ocean-View-5-Marbella-MDR-Luxury-Homes-1170x785.jpg?lossy=2&strip=1&webp=1", "https://b2435771.smushcdn.com/2435771/wp-content/uploads/2023/10/ocean_view_marbella-08-Ocean-View-TERRAZA-02-copy-scaled-1.jpg?lossy=2&strip=1&webp=1"],
-      features: ["Beachfront", "Swimming Pool", "24/7 Security", "Gym"]
-    ),
-    Investment(
-      id: "inv-002",
-      title: "Downtown Commercial Complex",
-      location: "Porthacourt, Porthacourt",
-      description: "Modern commercial space in the heart of Austin's tech district. Ideal for offices and retail spaces.",
-      realtorName: "Luxurious Paegent",
-      realtorImage: "https://content.jdmagicbox.com/comp/guwahati/h9/9999px361.x361.240612125146.r6h9/catalogue/luxurious-pageant-pvt-ltd-ganeshguri-guwahati-estate-agents-for-residential-rental-e54qpm0gc5.jpg",
-      minInvestment: 100000,
-      expectedReturn: "10-13% annually",
-      duration: "5-7 years",
-      investors: 32,
-      remainingAmount: 500000,
-      totalAmount: 4000000,
-      images: ["https://www.royalerealtorsindia.com/wp-content/uploads/2025/01/4.jpg", "https://geetanjalihomestate.co.in/mpanel/property-uploads/downtown-saroji-main-1738841974.webp"],
-      features: ["Prime Location", "Modern Architecture", "Parking Space", "Green Building"]
-    ),
-    Investment(
-      id: "inv-003",
-      title: "Suburban Housing Development",
-      location: "Abuja City, F.C.T",
-      description: "New residential development in a rapidly growing suburb. Perfect for families with excellent school districts.",
-      realtorName: "LandWey Invt. Ltd",
-      realtorImage: "https://images.ctfassets.net/abyiu1tn7a0f/4fVwW5zVvNyFmuEs0oBC7Y/571261a1ec58b0c0f0af190e9580824f/landwey-logo.jpg",
-      minInvestment: 75000,
-      expectedReturn: "8-11% annually",
-      duration: "4-6 years",
-      investors: 26,
-      remainingAmount: 350000,
-      totalAmount: 1500000,
-      images: ["https://www.ft.com/__origami/service/image/v2/images/raw/https%3A%2F%2Fd1e00ek4ebabms.cloudfront.net%2Fproduction%2F70d51010-e1df-462c-9a7f-694236de29a0.jpg?source=next-article&fit=scale-down&quality=highest&width=700&dpr=1", "https://assets.bwbx.io/images/users/iqjWHBFdfxIU/iUc_QUkWqdZg/v1/-1x-1.webp"],
-      features: ["Family-Friendly", "Parks Nearby", "Good Schools", "Community Center"]
-    )
-  ];
+ @override
+void initState() {
+  super.initState();
+  InvestmentApi.fetchInvestments().then((investments) {
+    setState(() {
+      this.investments = investments;
+      filteredInvestments = investments;
+    });
+  });
+}
 
   // Format price to Nigerian Naira
   String formatPrice(int price) {
