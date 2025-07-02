@@ -303,13 +303,11 @@ class _CountdownTimerState extends State<CountdownTimer> {
 class DepositOptions extends StatelessWidget {
   final double price;
   final Function(int, double) onDepositClick;
-
   const DepositOptions({
     super.key,
     required this.price,
     required this.onDepositClick,
   });
-
   @override
   Widget build(BuildContext context) {
     return Column(
@@ -360,43 +358,60 @@ class DepositOptions extends StatelessWidget {
       ],
     );
   }
-
   Widget _buildDepositOption(int percentage) {
     final depositAmount = price * percentage / 100;
     return GestureDetector(
       onTap: () => onDepositClick(percentage, depositAmount),
       child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 8),
+        padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 12),
         decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(8),
-          border: Border.all(color: const Color(0xFFF39322).withOpacity(0.2)),
+          color: const Color(0xFF000080).withOpacity(0.1), // Blue transparent background
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(
+            color: const Color(0xFF000080).withOpacity(0.3), // Blue transparent border
+            width: 1.5,
+          ),
           boxShadow: [
             BoxShadow(
-              color: Colors.grey.withOpacity(0.1),
+              color: const Color(0xFF000080).withOpacity(0.15),
               spreadRadius: 0,
-              blurRadius: 4,
-              offset: const Offset(0, 2),
+              blurRadius: 8,
+              offset: const Offset(0, 3),
             ),
           ],
+          gradient: LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [
+              const Color(0xFF000080).withOpacity(0.12),
+              const Color(0xFF000080).withOpacity(0.08),
+            ],
+          ),
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.center,
           children: [
-            Text(
-              '$percentage%',
-              style: const TextStyle(
-                fontSize: 8,
-                fontWeight: FontWeight.w500,
-                color: Color(0xFFF39322),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+              decoration: BoxDecoration(
+                color: const Color(0xFF000080).withOpacity(0.8),
+                borderRadius: BorderRadius.circular(6),
+              ),
+              child: Text(
+                '$percentage%',
+                style: const TextStyle(
+                  fontSize: 8,
+                  fontWeight: FontWeight.w600,
+                  color: Colors.white,
+                ),
               ),
             ),
-            const SizedBox(height: 3),
+            const SizedBox(height: 6),
             getNairaRichText(
               depositAmount,
               fontSize: 10.0,
               fontWeight: FontWeight.bold,
-              textColor: const Color(0xFF000080),
+              textColor: const Color(0xFF000080), // Changed to blue
             ),
           ],
         ),
@@ -1667,27 +1682,45 @@ class _LayeredListingCardState extends State<LayeredListingCard> {
       child: Container(
         padding: const EdgeInsets.symmetric(vertical: 10),
         decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(8),
-          border: Border.all(color: const Color(0xFFF39322).withOpacity(0.2)),
+          color: const Color(0xFF000080).withOpacity(0.1), // Blue transparent background
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(
+            color: const Color(0xFF000080).withOpacity(0.3), // Blue transparent border
+            width: 1.5,
+          ),
           boxShadow: [
             BoxShadow(
-              color: Colors.grey.withOpacity(0.1),
+              color: const Color(0xFF000080).withOpacity(0.15),
               spreadRadius: 0,
-              blurRadius: 4,
-              offset: const Offset(0, 2),
+              blurRadius: 8,
+              offset: const Offset(0, 3),
             ),
           ],
+          gradient: LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [
+              const Color(0xFF000080).withOpacity(0.12),
+              const Color(0xFF000080).withOpacity(0.08),
+            ],
+          ),
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.center,
           children: [
-            Text(
-              '$percentage%',
-              style: const TextStyle(
-                fontSize: 8,
-                fontWeight: FontWeight.w500,
-                color: Color(0xFFF39322),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+              decoration: BoxDecoration(
+                color: const Color(0xFF000080).withOpacity(0.8),
+                borderRadius: BorderRadius.circular(6),
+              ),
+              child: Text(
+                '$percentage%',
+                style: const TextStyle(
+                  fontSize: 8,
+                  fontWeight: FontWeight.w600,
+                  color: Colors.white,
+                ),
               ),
             ),
             const SizedBox(height: 3),
@@ -1695,7 +1728,7 @@ class _LayeredListingCardState extends State<LayeredListingCard> {
               depositAmount,
               fontSize: 10.0,
               fontWeight: FontWeight.bold,
-              textColor: const Color(0xFF000080),
+              textColor: const Color(0xFF000080), // Changed to blue
             ),
           ],
         ),
@@ -2287,76 +2320,99 @@ class _DashboardScreenState extends State<DashboardScreen> {
                             ],
                           ),
                           child: Row(
-                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                             children: [
-                              // Residential Button
-                              _buildCategoryButton(
-                                'residential',
-                                'Residential',
-                                'assets/images/residential.png',
-                                Icons.home,
+                              // Residential Button - Aligns with Home
+                              SizedBox(
+                                width: 60,
+                                child: _buildCategoryButton(
+                                  'residential',
+                                  'Residential',
+                                  'assets/images/residential.png',
+                                  Icons.home,
+                                ),
                               ),
-
-                              // Commercial Button
-                              _buildCategoryButton(
-                                'commercial',
-                                'Commercial',
-                                'assets/images/commercial.png',
-                                Icons.business,
+                              
+                              const SizedBox(width: 8), // Matching bottom nav spacing
+                              
+                              // Commercial Button - Aligns with Invest
+                              SizedBox(
+                                width: 60,
+                                child: _buildCategoryButton(
+                                  'commercial',
+                                  'Commercial',
+                                  'assets/images/commercial.png',
+                                  Icons.business,
+                                ),
                               ),
-
-                              // Sidebar Toggle Button
-                              Column(
-                                children: [
-                                  Container(
-                                    width: 40,
-                                    height: 40,
-                                    decoration: const BoxDecoration(
-                                      gradient: LinearGradient(
-                                        colors: [
-                                          Color(0xFFF39322),
-                                          Color(0xFF000080)
-                                        ],
-                                        begin: Alignment.topLeft,
-                                        end: Alignment.bottomRight,
+                              
+                              const SizedBox(width: 8), // Matching bottom nav spacing
+                              
+                              // Sidebar Toggle Button - Aligns with Add button
+                              SizedBox(
+                                width: 60,
+                                child: Column(
+                                  children: [
+                                    Container(
+                                      width: 40,
+                                      height: 40,
+                                      decoration: const BoxDecoration(
+                                        gradient: LinearGradient(
+                                          colors: [
+                                            Color(0xFFF39322),
+                                            Color(0xFF000080)
+                                          ],
+                                          begin: Alignment.topLeft,
+                                          end: Alignment.bottomRight,
+                                        ),
+                                        shape: BoxShape.circle,
                                       ),
-                                      shape: BoxShape.circle,
-                                    ),
-                                    child: IconButton(
-                                      icon: const Icon(
-                                        Icons.menu,
-                                        color: Colors.white,
-                                        size: 24,
+                                      child: IconButton(
+                                        icon: const Icon(
+                                          Icons.menu,
+                                          color: Colors.white,
+                                          size: 24,
+                                        ),
+                                        onPressed: _toggleSidebar,
                                       ),
-                                      onPressed: _toggleSidebar,
                                     ),
-                                  ),
-                                  const SizedBox(height: 4),
-                                  const Text(
-                                    'Menu',
-                                    style: TextStyle(
-                                      fontSize: 10,
-                                      fontWeight: FontWeight.w500,
-                                      color: Color(0xFF000080),
+                                    const SizedBox(height: 4),
+                                    const Text(
+                                      'Menu',
+                                      style: TextStyle(
+                                        fontSize: 9, // Reduced from 10 to 9
+                                        fontWeight: FontWeight.w500,
+                                        color: Color(0xFF000080),
+                                      ),
                                     ),
-                                  ),
-                                ],
+                                  ],
+                                ),
                               ),
-
-                              // Land Button
-                              _buildCategoryButton(
-                                'land',
-                                'Land',
-                                'assets/images/Land.png',
-                                Icons.landscape,
+                              
+                              const SizedBox(width: 8), // Matching bottom nav spacing
+                              
+                              // Land Button - Aligns with Bid
+                              SizedBox(
+                                width: 60,
+                                child: _buildCategoryButton(
+                                  'land',
+                                  'Land',
+                                  'assets/images/Land.png',
+                                  Icons.landscape,
+                                ),
                               ),
-
-                              // Material Button
-                              _buildCategoryButton(
-                                'material',
-                                'Material',
-                                'assets/images/Material.png',
-                                Icons.inventory,
+                              
+                              const SizedBox(width: 8), // Matching bottom nav spacing
+                              
+                              // Material Button - Aligns with Explore
+                              SizedBox(
+                                width: 60,
+                                child: _buildCategoryButton(
+                                  'material',
+                                  'Material',
+                                  'assets/images/Material.png',
+                                  Icons.inventory,
+                                ),
                               ),
                             ],
                           ),
@@ -2587,7 +2643,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
         Text(
           label,
           style: TextStyle(
-            fontSize: 10,
+            fontSize: 9, // Reduced from 10 to 9
             fontWeight: FontWeight.w500,
             color: isSelected
                 ? const Color(0xFFF39322)

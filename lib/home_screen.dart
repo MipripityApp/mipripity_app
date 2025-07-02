@@ -270,6 +270,16 @@ Future<void> fetchPollProperties() async {
 
 // Handle vote for a poll property suggestion
 Future<void> _handlePollVote(String pollId, String suggestion) async {
+  // Check if user is logged in
+  final prefs = await SharedPreferences.getInstance();
+  final userDataJson = prefs.getString('user_data');
+  
+  if (userDataJson == null) {
+    // User is not logged in, show login prompt
+    _showLoginRequiredDialog();
+    return;
+  }
+  
   try {
     // Show loading indicator
     ScaffoldMessenger.of(context).showSnackBar(
@@ -326,6 +336,107 @@ Future<void> _handlePollVote(String pollId, String suggestion) async {
       );
     }
   }
+}
+
+// Show login required dialog
+void _showLoginRequiredDialog() {
+  showDialog(
+    context: context,
+    barrierDismissible: true,
+    builder: (BuildContext context) {
+      return Dialog(
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(20.0),
+        ),
+        child: Container(
+          padding: const EdgeInsets.all(24.0),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Icon(
+                Icons.lock_outline,
+                size: 48,
+                color: Color(0xFF000080),
+              ),
+              const SizedBox(height: 16),
+              const Text(
+                "Login Required",
+                style: TextStyle(
+                  fontSize: 20,
+                  fontWeight: FontWeight.bold,
+                  color: Color(0xFF000080),
+                ),
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 16),
+              const Text(
+                "You need to be logged in to vote on poll properties. Create an account or login to access this feature.",
+                style: TextStyle(
+                  fontSize: 14,
+                  color: Colors.black87,
+                ),
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 24),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                children: [
+                  ElevatedButton(
+                    onPressed: () {
+                      Navigator.of(context).pop();
+                      Navigator.of(context).pushNamed('/login');
+                      HapticFeedback.mediumImpact();
+                    },
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFF000080),
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                    ),
+                    child: const Text(
+                      "Login",
+                      style: TextStyle(fontWeight: FontWeight.w600),
+                    ),
+                  ),
+                  ElevatedButton(
+                    onPressed: () {
+                      Navigator.of(context).pop();
+                      Navigator.of(context).pushNamed('/register');
+                      HapticFeedback.mediumImpact();
+                    },
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFFF39322),
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                    ),
+                    child: const Text(
+                      "Register",
+                      style: TextStyle(fontWeight: FontWeight.w600),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 8),
+              TextButton(
+                onPressed: () {
+                  Navigator.of(context).pop();
+                },
+                style: TextButton.styleFrom(
+                  foregroundColor: Colors.grey[600],
+                ),
+                child: const Text("Cancel"),
+              ),
+            ],
+          ),
+        ),
+      );
+    },
+  );
 }
 
 // Helper method to fetch properties by category with improved error handling and API fallback

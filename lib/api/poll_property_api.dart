@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:math' as math;
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -42,17 +43,69 @@ class PollProperty {
   });
 
   factory PollProperty.fromJson(Map<String, dynamic> json) {
-    final suggestionsList = (json['suggestions'] as List)
-        .map((suggestion) => PollSuggestion.fromJson(suggestion))
-        .toList();
-
-    return PollProperty(
-      id: json['id'],
-      title: json['title'],
-      location: json['location'],
-      imageUrl: json['image_url'] ?? '',
-      suggestions: suggestionsList,
-    );
+    List<PollSuggestion> suggestionsList = [];
+    
+    try {
+      // Handle different formats of suggestions
+      if (json['suggestions'] is Map) {
+        // API format: {"suggestion1": voteCount1, "suggestion2": voteCount2, ...}
+        final suggestionsMap = json['suggestions'] as Map<String, dynamic>;
+        
+        suggestionsList = suggestionsMap.entries.map((entry) {
+          return PollSuggestion(
+            suggestion: entry.key,
+            votes: entry.value is int ? entry.value : int.tryParse(entry.value.toString()) ?? 0,
+          );
+        }).toList();
+      } else if (json['suggestions'] is List) {
+        // Handle older format if it exists
+        suggestionsList = (json['suggestions'] as List)
+            .map((suggestion) => suggestion is Map<String, dynamic> 
+                ? PollSuggestion.fromJson(suggestion)
+                : PollSuggestion(suggestion: suggestion.toString(), votes: 0))
+            .toList();
+      } else if (json['poll_suggestions'] is List) {
+        // Use poll_suggestions as fallback
+        final pollSuggestions = json['poll_suggestions'] as List;
+        final pollUserVotes = json['poll_user_votes'] as Map<String, dynamic>?;
+        
+        // Create suggestions list from poll_suggestions
+        suggestionsList = pollSuggestions.map((suggestion) {
+          final suggestionName = suggestion.toString();
+          // Count votes by checking how many users voted for this suggestion
+          int voteCount = 0;
+          if (pollUserVotes != null) {
+            voteCount = pollUserVotes.values.where((vote) => vote == suggestionName).length;
+          }
+          return PollSuggestion(suggestion: suggestionName, votes: voteCount);
+        }).toList();
+      }
+      
+      // Make string conversions for id if needed
+      final propertyId = json['id'] is int 
+          ? json['id'].toString() 
+          : (json['id'] ?? '0').toString();
+      
+      return PollProperty(
+        id: propertyId,
+        title: json['title'] ?? 'Untitled Poll Property',
+        location: json['location'] ?? 'Unknown Location',
+        imageUrl: json['image_url'] ?? '',
+        suggestions: suggestionsList,
+      );
+    } catch (e) {
+      // Log the error but provide a valid object
+      print('Error parsing PollProperty: $e for data: ${json.toString().substring(0, 100)}...');
+      return PollProperty(
+        id: (json['id'] ?? '0').toString(),
+        title: json['title'] ?? 'Untitled Poll Property',
+        location: json['location'] ?? 'Unknown Location',
+        imageUrl: json['image_url'] ?? '',
+        suggestions: suggestionsList.isEmpty 
+            ? [PollSuggestion(suggestion: 'No suggestions available', votes: 0)]
+            : suggestionsList,
+      );
+    }
   }
 
   Map<String, dynamic> toJson() {
@@ -70,38 +123,9 @@ class PollPropertyApi {
   // Use only production URL as the project is in production stage
   static const String _apiBaseUrl = 'https://mipripity-api-1.onrender.com';
   
-  // Get sample poll properties for demo/testing
-  static Future<List<PollProperty>> _getSamplePollProperties() {
-    // Create sample poll properties for testing
-    return Future.value([
-      PollProperty(
-        id: 'sample-poll-1',
-        title: 'Uncompleted Duplex',
-        location: 'Ikeja, Lagos',
-        imageUrl: 'assets/images/residential1.jpg',
-        suggestions: [
-          PollSuggestion(suggestion: 'Mini Mall', votes: 8),
-          PollSuggestion(suggestion: 'Shortlet Apartment', votes: 12),
-          PollSuggestion(suggestion: 'Open Event Space', votes: 5),
-          PollSuggestion(suggestion: 'Private School', votes: 3),
-        ],
-      ),
-      PollProperty(
-        id: 'sample-poll-2',
-        title: 'Corner Piece Land',
-        location: 'Lekki, Lagos',
-        imageUrl: 'assets/images/land1.jpeg',
-        suggestions: [
-          PollSuggestion(suggestion: 'Shopping Complex', votes: 15),
-          PollSuggestion(suggestion: 'Residential Estate', votes: 9),
-          PollSuggestion(suggestion: 'Hotel', votes: 7),
-          PollSuggestion(suggestion: 'Office Space', votes: 4),
-        ],
-      ),
-    ]);
-  }
+  // Production mode - no sample data methods needed
 
-  // Fetch all poll properties
+  // Fetch all poll properties with improved logging
   static Future<List<PollProperty>> getPollProperties() async {
     try {
       print('Fetching poll properties from $_apiBaseUrl/poll_properties');
@@ -113,20 +137,34 @@ class PollPropertyApi {
         onTimeout: () => throw Exception('Request timed out'),
       );
 
-      if (response.statusCode == 200) {
-        final List<dynamic> data = jsonDecode(response.body);
-        if (data.isNotEmpty) {
-          return data.map((json) => PollProperty.fromJson(json)).toList();
-        }
-      }
+      print('API response status code: ${response.statusCode}');
       
-      // If API fails or returns empty data, return sample data
-      print('Using sample poll properties data');
-      return _getSamplePollProperties();
+      if (response.statusCode == 200) {
+        // Log response for debugging
+        final responseBody = response.body;
+        print('Received API response length: ${responseBody.length} bytes');
+        
+        try {
+          final List<dynamic> data = jsonDecode(responseBody);
+          print('Successfully decoded JSON with ${data.length} poll properties');
+          
+          final properties = data.map((json) => PollProperty.fromJson(json)).toList();
+          print('Successfully parsed ${properties.length} poll properties');
+          
+          return properties;
+        } catch (parseError) {
+          print('JSON parsing error: $parseError');
+          print('Response body: ${responseBody.substring(0, math.min(300, responseBody.length))}...');
+          return [];
+        }
+      } else {
+        print('API request failed with status: ${response.statusCode}');
+        print('Response body: ${response.body}');
+        return []; // Return empty list instead of sample data
+      }
     } catch (e) {
       print('Error fetching poll properties: $e');
-      // Return sample data if error occurs
-      return _getSamplePollProperties();
+      return []; // Return empty list instead of sample data
     }
   }
 
@@ -217,8 +255,8 @@ class PollPropertyApi {
       String? userId = prefs.getString('poll_user_id');
 
       if (userId == null) {
-        // Generate a unique ID using timestamp + random
-        userId = '${DateTime.now().millisecondsSinceEpoch}-${(1000 + (DateTime.now().microsecond % 9000)).toString()}';
+        // Generate a new user ID if none exists
+        userId = 'user-${DateTime.now().millisecondsSinceEpoch}';
         await prefs.setString('poll_user_id', userId);
       }
 
