@@ -9,7 +9,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'filter_form.dart';
 import 'api/property_api.dart';
-import 'api/poll_property_api.dart'; // Import for Poll Property API
+import 'api/home_poll_property_api.dart'; // Import for Home Poll Property API
 import 'database_helper.dart'; // Import for DatabaseHelper
 // First, add imports for all the property screens at the top of the file
 import 'residential_properties_screen.dart';
@@ -243,14 +243,23 @@ void _setupPollPropertiesAutoScroll() {
   });
 }
 
-// Fetch poll properties from API
-Future<void> fetchPollProperties() async {
+// Fetch poll properties from the HomePollPropertyApi
+Future<void> fetchPollProperties({bool forceRefresh = false}) async {
   setState(() {
     isPollPropertiesLoading = true;
   });
   
   try {
-    final properties = await PollPropertyApi.getPollProperties();
+    // Get poll properties from the Home API
+    List<PollProperty> properties = [];
+    
+    try {
+      // Use forceRefresh parameter to control if we force a fresh fetch
+      properties = await HomePollPropertyApi.getPollProperties(forceRefresh: forceRefresh);
+      print('Successfully fetched ${properties.length} poll properties for home screen');
+    } catch (error) {
+      print('Error fetching poll properties for home screen: $error');
+    }
     
     if (mounted) {
       setState(() {
@@ -259,7 +268,7 @@ Future<void> fetchPollProperties() async {
       });
     }
   } catch (e) {
-    print('Error fetching poll properties: $e');
+    print('Error in fetchPollProperties: $e');
     if (mounted) {
       setState(() {
         isPollPropertiesLoading = false;
@@ -268,77 +277,7 @@ Future<void> fetchPollProperties() async {
   }
 }
 
-// Handle vote for a poll property suggestion
-Future<void> _handlePollVote(String pollId, String suggestion) async {
-  // Check if user is logged in
-  final prefs = await SharedPreferences.getInstance();
-  final userDataJson = prefs.getString('user_data');
-  
-  if (userDataJson == null) {
-    // User is not logged in, show login prompt
-    _showLoginRequiredDialog();
-    return;
-  }
-  
-  try {
-    // Show loading indicator
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('Recording your vote...'),
-        duration: Duration(seconds: 1),
-      ),
-    );
-    
-    final success = await PollPropertyApi.voteForSuggestion(
-      pollPropertyId: pollId,
-      suggestion: suggestion,
-    );
-    
-    if (success && mounted) {
-      // Update the local state to reflect the vote
-      setState(() {
-        final pollIndex = pollProperties.indexWhere((p) => p.id == pollId);
-        if (pollIndex >= 0) {
-          final suggestionIndex = pollProperties[pollIndex].suggestions
-              .indexWhere((s) => s.suggestion == suggestion);
-          if (suggestionIndex >= 0) {
-            pollProperties[pollIndex].suggestions[suggestionIndex].votes++;
-          }
-        }
-      });
-      
-      // Show success message
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Vote recorded successfully!'),
-          backgroundColor: Colors.green,
-        ),
-      );
-      
-      // Add haptic feedback for better user experience
-      HapticFeedback.mediumImpact();
-    } else if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Failed to record your vote. Please try again.'),
-          backgroundColor: Colors.red,
-        ),
-      );
-    }
-  } catch (e) {
-    print('Error voting for poll suggestion: $e');
-    if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('An error occurred. Please try again later.'),
-          backgroundColor: Colors.red,
-        ),
-      );
-    }
-  }
-}
-
-// Show login required dialog
+// Show login required dialog when user attempts to interact with poll properties
 void _showLoginRequiredDialog() {
   showDialog(
     context: context,
@@ -1355,23 +1294,43 @@ Widget getNairaRichText(double price, {Color textColor = Colors.white, double fo
                                           fontSize: 16,
                                         ),
                                       ),
-                                      if (!isPollPropertiesLoading && pollProperties.isNotEmpty)
-                                        Row(
-                                          children: [
-                                            for (int i = 0; i < pollProperties.length; i++)
-                                              Container(
-                                                width: 8,
-                                                height: 8,
-                                                margin: const EdgeInsets.symmetric(horizontal: 2),
-                                                decoration: BoxDecoration(
-                                                  shape: BoxShape.circle,
-                                                  color: _currentPollPage == i
-                                                      ? const Color(0xFFF39322)
-                                                      : Colors.grey[300],
-                                                ),
-                                              ),
-                                          ],
-                                        ),
+                                      Row(
+                                        children: [
+                                          // Refresh button
+                                          if (!isPollPropertiesLoading)
+                                            IconButton(
+                                              icon: const Icon(Icons.refresh, size: 20),
+                                              color: const Color(0xFFF39322),
+                                              onPressed: () {
+                                                fetchPollProperties(forceRefresh: true);
+                                                // Add haptic feedback
+                                                HapticFeedback.mediumImpact();
+                                              },
+                                              tooltip: 'Refresh poll properties',
+                                              padding: EdgeInsets.zero,
+                                              constraints: const BoxConstraints(),
+                                            ),
+                                          const SizedBox(width: 12),
+                                          // Page indicators
+                                          if (!isPollPropertiesLoading && pollProperties.isNotEmpty)
+                                            Row(
+                                              children: [
+                                                for (int i = 0; i < pollProperties.length; i++)
+                                                  Container(
+                                                    width: 8,
+                                                    height: 8,
+                                                    margin: const EdgeInsets.symmetric(horizontal: 2),
+                                                    decoration: BoxDecoration(
+                                                      shape: BoxShape.circle,
+                                                      color: _currentPollPage == i
+                                                          ? const Color(0xFFF39322)
+                                                          : Colors.grey[300],
+                                                    ),
+                                                  ),
+                                              ],
+                                            ),
+                                        ],
+                                      ),
                                     ],
                                   ),
                                 ),
@@ -1541,7 +1500,10 @@ Widget getNairaRichText(double price, {Color textColor = Colors.white, double fo
                                                           final suggestion = property.suggestions[i];
                                                           return GestureDetector(
                                                             onTap: () {
-                                                              _handlePollVote(property.id, suggestion.suggestion);
+                                                              // Show login required dialog since we're not handling votes in the home screen
+                                                              _showLoginRequiredDialog();
+                                                              // Add haptic feedback
+                                                              HapticFeedback.selectionClick();
                                                             },
                                                             child: Container(
                                                               margin: const EdgeInsets.only(right: 8),

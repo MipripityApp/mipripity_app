@@ -6,7 +6,6 @@ import 'dart:async';
 
 import 'api/poll_property_api.dart';
 import 'providers/user_provider.dart';
-import 'shared/bottom_navigation.dart';
 
 class PollPropertyScreen extends StatefulWidget {
   final String? pollPropertyId;
@@ -393,13 +392,6 @@ class _PollPropertyScreenState extends State<PollPropertyScreen> {
             )
           : null,
       floatingActionButtonLocation: FloatingActionButtonLocation.centerFloat,
-      bottomNavigationBar: SharedBottomNavigation(
-        key: const ValueKey('poll_property_bottom_nav'),
-        activeTab: "home", // Assuming we come from home screen
-        onTabChange: (tab) {
-          SharedBottomNavigation.handleNavigation(context, tab);
-        },
-      ),
     );
   }
 

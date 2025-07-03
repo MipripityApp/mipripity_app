@@ -2,11 +2,13 @@ import 'package:flutter/material.dart';
 import 'dart:async';
 import 'dart:convert';
 import 'package:shimmer/shimmer.dart';
+import 'package:provider/provider.dart';
 import 'api/property_api.dart';
 import 'api/poll_property_api.dart';
 import 'shared/bottom_navigation.dart';
 import 'utils/currency_formatter.dart';
 import 'poll_property_screen.dart';
+import 'providers/user_provider.dart';
 
 // Listing model with immutable properties to avoid state issues
 class Listing {
@@ -236,6 +238,11 @@ class _ExplorePageState extends State<ExplorePage> with AutomaticKeepAliveClient
   List<SkillWorker> skillWorkersListings = [];
   List<PollProperty> pollProperties = [];
   
+  // User data
+  Map<String, dynamic>? _userData;
+  String _userProfileImage = 'assets/images/mipripity.png';
+  String _userName = 'User';
+  
   // Refresh controller
   final GlobalKey<RefreshIndicatorState> _refreshIndicatorKey = GlobalKey<RefreshIndicatorState>();
   
@@ -244,6 +251,25 @@ class _ExplorePageState extends State<ExplorePage> with AutomaticKeepAliveClient
     super.initState();
     _fetchData();
     _fetchPollProperties();
+    _fetchUserData();
+  }
+  
+  // Fetch user data from provider
+  void _fetchUserData() {
+    try {
+      final userProvider = Provider.of<UserProvider>(context, listen: false);
+      final currentUser = userProvider.getCurrentUser();
+      
+      if (currentUser != null) {
+        setState(() {
+          _userName = currentUser.firstName ?? 'User';
+          _userProfileImage = currentUser.avatarUrl ?? 'assets/images/mipripity.png';
+        });
+      }
+    } catch (e) {
+      print('Error fetching user data: $e');
+      // Default values already set in declaration
+    }
   }
   
   @override
@@ -706,10 +732,10 @@ class _ExplorePageState extends State<ExplorePage> with AutomaticKeepAliveClient
                             decoration: BoxDecoration(
                               shape: BoxShape.circle,
                               border: Border.all(color: Colors.white, width: 2),
-                              image: const DecorationImage(
-                                image: NetworkImage(
-                                  'https://randomuser.me/api/portraits/men/32.jpg',
-                                ),
+                              image: DecorationImage(
+                                image: _userProfileImage.startsWith('http')
+                                    ? NetworkImage(_userProfileImage)
+                                    : AssetImage(_userProfileImage) as ImageProvider,
                                 fit: BoxFit.cover,
                               ),
                               boxShadow: [
@@ -898,10 +924,6 @@ class _ExplorePageState extends State<ExplorePage> with AutomaticKeepAliveClient
 
   // Poll Properties Section
   Widget _buildPollProperties() {
-    if (pollProperties.isEmpty) {
-      return const SizedBox(); // Don't show section if empty
-    }
-    
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -945,17 +967,24 @@ class _ExplorePageState extends State<ExplorePage> with AutomaticKeepAliveClient
           ],
         ),
         const SizedBox(height: 16),
-        SizedBox(
-          height: 260,
-          child: ListView.builder(
-            scrollDirection: Axis.horizontal,
-            itemCount: pollProperties.length,
-            itemBuilder: (context, index) {
-              final property = pollProperties[index];
-              return _buildPollPropertyCard(property, index);
-            },
-          ),
-        ),
+        pollProperties.isEmpty
+            ? _buildEmptyState(
+                icon: Icons.poll,
+                message: 'No poll properties available',
+                actionLabel: 'Refresh',
+                onAction: _fetchPollProperties,
+              )
+            : SizedBox(
+                height: 260,
+                child: ListView.builder(
+                  scrollDirection: Axis.horizontal,
+                  itemCount: pollProperties.length,
+                  itemBuilder: (context, index) {
+                    final property = pollProperties[index];
+                    return _buildPollPropertyCard(property, index);
+                  },
+                ),
+              ),
       ],
     );
   }
