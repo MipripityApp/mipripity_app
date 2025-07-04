@@ -222,7 +222,7 @@ class HomePollPropertyApi {
   // Make a single API request with proper error handling
   static Future<List<PollProperty>> _makeApiRequest() async {
     try {
-      final url = '$_apiBaseUrl/poll_properties';
+      const url = '$_apiBaseUrl/poll_properties';
       print('Home API: Making request to: $url');
       
       final response = await _httpClient.get(

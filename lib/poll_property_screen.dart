@@ -4,15 +4,18 @@ import 'package:provider/provider.dart';
 import 'package:shimmer/shimmer.dart';
 import 'dart:async';
 
-import 'api/poll_property_api.dart';
+import 'api/poll_property_api.dart' as auth_api;
+import 'api/home_poll_property_api.dart' as home_api;
 import 'providers/user_provider.dart';
 
 class PollPropertyScreen extends StatefulWidget {
   final String? pollPropertyId;
+  final bool isUserLoggedIn;
   
   const PollPropertyScreen({
     Key? key,
     this.pollPropertyId,
+    this.isUserLoggedIn = false,
   }) : super(key: key);
 
   @override
@@ -20,9 +23,11 @@ class PollPropertyScreen extends StatefulWidget {
 }
 
 class _PollPropertyScreenState extends State<PollPropertyScreen> {
+  // Fixed vote options
+  final List<String> voteOptions = ['Rent', 'Buy', 'Lease', 'Develop', 'Partner'];
   bool _isLoading = true;
   String? _error;
-  List<PollProperty> _pollProperties = [];
+  List<dynamic> _pollProperties = []; // Using dynamic to avoid type conflicts
   int _currentPageIndex = 0;
   String? _selectedSuggestion;
   bool _isVoting = false;
@@ -54,8 +59,10 @@ class _PollPropertyScreenState extends State<PollPropertyScreen> {
     });
     
     try {
-      // Fetch all poll properties since there's no direct API to fetch by ID
-      final List<PollProperty> properties = await PollPropertyApi.getPollProperties();
+      // Fetch poll properties based on user login status
+      final properties = widget.isUserLoggedIn 
+          ? await auth_api.PollPropertyApi.getPollProperties()
+          : await home_api.HomePollPropertyApi.getPollProperties();
       
       if (mounted) {
         if (properties.isEmpty) {
@@ -70,7 +77,12 @@ class _PollPropertyScreenState extends State<PollPropertyScreen> {
             
             // Set initial page if a specific ID was provided
             if (widget.pollPropertyId != null) {
-              final int initialIndex = properties.indexWhere((p) => p.id == widget.pollPropertyId);
+              // Use dynamic casting to handle different property types
+              final int initialIndex = properties.indexWhere((p) {
+                // Cast to dynamic to allow runtime property access
+                final dynamic dynamicProperty = p;
+                return dynamicProperty.id == widget.pollPropertyId;
+              });
               if (initialIndex != -1) {
                 _currentPageIndex = initialIndex;
                 // Animate to the correct page after the build cycle completes
@@ -119,10 +131,14 @@ class _PollPropertyScreenState extends State<PollPropertyScreen> {
       return;
     }
     
-    // Get user from provider
-    final userProvider = Provider.of<UserProvider>(context, listen: false);
+    // First check if user is logged in based on widget flag
+    if (!widget.isUserLoggedIn) {
+      _showLoginPrompt();
+      return;
+    }
     
-    // Check if user is authenticated
+    // Then check if user is authenticated through provider
+    final userProvider = Provider.of<UserProvider>(context, listen: false);
     if (!userProvider.isAuthenticated()) {
       _showLoginPrompt();
       return;
@@ -136,7 +152,7 @@ class _PollPropertyScreenState extends State<PollPropertyScreen> {
     
     try {
       final currentProperty = _pollProperties[_currentPageIndex];
-      final success = await PollPropertyApi.voteForSuggestion(
+      final success = await auth_api.PollPropertyApi.voteForSuggestion(
         pollPropertyId: currentProperty.id,
         suggestion: suggestion,
       );
@@ -661,14 +677,25 @@ class _PollPropertyScreenState extends State<PollPropertyScreen> {
                           ),
                         const SizedBox(height: 16),
                         
-                        // List of suggestions
+                        // Fixed vote options instead of dynamic suggestions
                         ListView.builder(
                           shrinkWrap: true,
                           physics: const NeverScrollableScrollPhysics(),
-                          itemCount: property.suggestions.length,
+                          itemCount: voteOptions.length,
                           itemBuilder: (context, i) {
-                            final suggestion = property.suggestions[i];
-                            final bool isSelected = _selectedSuggestion == suggestion.suggestion;
+                            final optionText = voteOptions[i];
+                            // Find if this option exists in the property suggestions
+                            final suggestionIndex = property.suggestions
+                                .indexWhere((s) => s.suggestion.toLowerCase() == optionText.toLowerCase());
+                            
+                            // Use existing suggestion if found, otherwise create a placeholder
+                            final suggestion = suggestionIndex >= 0
+                                ? property.suggestions[suggestionIndex]
+                                : (widget.isUserLoggedIn 
+                                    ? auth_api.PollSuggestion(suggestion: optionText, votes: 0)
+                                    : home_api.PollSuggestion(suggestion: optionText, votes: 0));
+                                
+                            final bool isSelected = _selectedSuggestion == optionText;
                             final double percentage = totalVotes > 0
                                 ? (suggestion.votes / totalVotes) * 100
                                 : 0;
@@ -691,7 +718,7 @@ class _PollPropertyScreenState extends State<PollPropertyScreen> {
                                 child: InkWell(
                                   onTap: _isVoting || _hasVoted
                                       ? null
-                                      : () => _handleVote(suggestion.suggestion),
+                                      : () => _handleVote(optionText),
                                   borderRadius: BorderRadius.circular(12),
                                   child: Padding(
                                     padding: const EdgeInsets.all(16),
@@ -703,7 +730,7 @@ class _PollPropertyScreenState extends State<PollPropertyScreen> {
                                           children: [
                                             Expanded(
                                               child: Text(
-                                                suggestion.suggestion,
+                                                optionText,
                                                 style: TextStyle(
                                                   fontSize: 16,
                                                   fontWeight: isSelected || _hasVoted

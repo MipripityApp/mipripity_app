@@ -55,11 +55,93 @@ class PollProperty {
     List<PollSuggestion> suggestionsList = [];
     
     try {
-      // Handle different formats of suggestions
-      if (json['suggestions'] is Map) {
-        // API format: {"suggestion1": voteCount1, "suggestion2": voteCount2, ...}
-        final suggestionsMap = json['suggestions'] as Map<String, dynamic>;
+      print('Parsing poll property JSON: ${json.toString()}');
+      
+      // Primary parsing logic based on your database structure
+      if (json['poll_suggestions'] != null) {
+        // This matches your database structure
+        final pollSuggestions = json['poll_suggestions'];
+        final pollUserVotes = json['poll_user_votes'];
         
+        List<String> suggestions = [];
+        
+        // Parse poll_suggestions (could be List or JSON string)
+        if (pollSuggestions is List) {
+          suggestions = pollSuggestions.map((s) => s.toString()).toList();
+        } else if (pollSuggestions is String) {
+          try {
+            // Try to parse as JSON array
+            final decoded = jsonDecode(pollSuggestions);
+            if (decoded is List) {
+              suggestions = decoded.map((s) => s.toString()).toList();
+            } else {
+              // If not a JSON array, treat as single suggestion
+              suggestions = [pollSuggestions];
+            }
+          } catch (e) {
+            print('Error parsing poll_suggestions JSON: $e');
+            suggestions = [pollSuggestions];
+          }
+        }
+        
+        // Parse poll_user_votes to count votes per suggestion
+        Map<String, int> voteCounts = {};
+        if (pollUserVotes != null) {
+          if (pollUserVotes is Map) {
+            // Count votes for each suggestion
+            for (String suggestion in suggestions) {
+              voteCounts[suggestion] = 0;
+            }
+            
+            // Count votes from poll_user_votes
+            final votes = pollUserVotes as Map<String, dynamic>;
+            for (var vote in votes.values) {
+              final voteStr = vote.toString();
+              if (voteCounts.containsKey(voteStr)) {
+                voteCounts[voteStr] = voteCounts[voteStr]! + 1;
+              }
+            }
+          } else if (pollUserVotes is String) {
+            try {
+              final decodedVotes = jsonDecode(pollUserVotes) as Map<String, dynamic>;
+              // Initialize vote counts
+              for (String suggestion in suggestions) {
+                voteCounts[suggestion] = 0;
+              }
+              
+              // Count votes
+              for (var vote in decodedVotes.values) {
+                final voteStr = vote.toString();
+                if (voteCounts.containsKey(voteStr)) {
+                  voteCounts[voteStr] = voteCounts[voteStr]! + 1;
+                }
+              }
+            } catch (e) {
+              print('Error parsing poll_user_votes JSON: $e');
+              // Initialize with zero votes
+              for (String suggestion in suggestions) {
+                voteCounts[suggestion] = 0;
+              }
+            }
+          }
+        } else {
+          // No votes data, initialize with zero votes
+          for (String suggestion in suggestions) {
+            voteCounts[suggestion] = 0;
+          }
+        }
+        
+        // Create PollSuggestion objects
+        suggestionsList = suggestions.map((suggestion) {
+          return PollSuggestion(
+            suggestion: suggestion,
+            votes: voteCounts[suggestion] ?? 0,
+          );
+        }).toList();
+      } 
+      // Fallback: Handle legacy 'suggestions' field format
+      else if (json['suggestions'] is Map) {
+        final suggestionsMap = json['suggestions'] as Map<String, dynamic>;
         suggestionsList = suggestionsMap.entries.map((entry) {
           return PollSuggestion(
             suggestion: entry.key,
@@ -67,7 +149,6 @@ class PollProperty {
           );
         }).toList();
       } else if (json['suggestions'] is List) {
-        // Handle list format
         final suggestionsListData = json['suggestions'] as List;
         suggestionsList = suggestionsListData.map((suggestion) {
           if (suggestion is Map<String, dynamic>) {
@@ -75,21 +156,6 @@ class PollProperty {
           } else {
             return PollSuggestion(suggestion: suggestion.toString(), votes: 0);
           }
-        }).toList();
-      } else if (json['poll_suggestions'] is List) {
-        // Use poll_suggestions as fallback
-        final pollSuggestions = json['poll_suggestions'] as List;
-        final pollUserVotes = json['poll_user_votes'] as Map<String, dynamic>?;
-        
-        // Create suggestions list from poll_suggestions
-        suggestionsList = pollSuggestions.map((suggestion) {
-          final suggestionName = suggestion.toString();
-          // Count votes by checking how many users voted for this suggestion
-          int voteCount = 0;
-          if (pollUserVotes != null) {
-            voteCount = pollUserVotes.values.where((vote) => vote == suggestionName).length;
-          }
-          return PollSuggestion(suggestion: suggestionName, votes: voteCount);
         }).toList();
       }
       
@@ -108,6 +174,7 @@ class PollProperty {
     } catch (e) {
       // Log the error but provide a valid object
       print('Error parsing PollProperty: $e');
+      print('JSON data: ${json.toString()}');
       return PollProperty(
         id: json['id']?.toString() ?? '0',
         title: json['title']?.toString() ?? 'Untitled Poll Property',
@@ -133,19 +200,12 @@ class PollPropertyApi {
   // Use only production URL as the project is in production stage
   static const String _apiBaseUrl = 'https://mipripity-api-1.onrender.com';
   
-  // HTTP client for connection reuse and better performance
-  static http.Client? _client;
-  
-  // Get or create HTTP client with persistent connection
-  static http.Client _getClient() {
-    _client ??= http.Client();
-    return _client!;
-  }
+  // HTTP client with persistent connection for better performance
+  static final http.Client _httpClient = http.Client();
   
   // Dispose client when done
   static void dispose() {
-    _client?.close();
-    _client = null;
+    _httpClient.close();
   }
   
   // Enhanced headers with User-Agent and better error handling
@@ -153,32 +213,27 @@ class PollPropertyApi {
     return {
       'Content-Type': 'application/json',
       'Accept': 'application/json',
-      'User-Agent': 'Flutter-App/1.0',
+      'User-Agent': 'MipripityApp/1.0',
       'Connection': 'keep-alive',
     };
   }
 
-  // Improved network connectivity check
+  // Simplified but reliable network connectivity check
   static Future<bool> _hasNetworkConnection() async {
     try {
-      // First try a quick DNS lookup
-      final addresses = await InternetAddress.lookup('google.com');
-      if (addresses.isNotEmpty && addresses[0].rawAddress.isNotEmpty) {
-        return true;
-      }
+      final result = await InternetAddress.lookup('google.com')
+          .timeout(const Duration(seconds: 5));
+      return result.isNotEmpty && result[0].rawAddress.isNotEmpty;
+    } on SocketException catch (_) {
+      print('Network connectivity check failed: No internet connection');
+      return false;
+    } on TimeoutException catch (_) {
+      print('Network connectivity check timed out');
       return false;
     } catch (e) {
-      print('Network connectivity check failed: $e');
-      // Fallback to HTTP check if DNS lookup fails
-      try {
-        final response = await http.head(
-          Uri.parse('https://www.google.com'),
-        ).timeout(const Duration(seconds: 5));
-        return response.statusCode >= 200 && response.statusCode < 400;
-      } catch (e2) {
-        print('HTTP connectivity check also failed: $e2');
-        return false;
-      }
+      print('Error checking network connectivity: $e');
+      // Default to assuming connectivity is available if we can't check
+      return true;
     }
   }
   
@@ -233,38 +288,110 @@ class PollPropertyApi {
     }
   }
 
-  // Wake up the Render.com service with longer timeout for cold starts
+  // Improved wake up method for Render.com service with better error handling
   static Future<bool> _wakeUpService() async {
     try {
       print('Attempting to wake up Render.com service...');
       
-      // Use a simple health check endpoint or the main API endpoint
-      final response = await _getClient().get(
-        Uri.parse('$_apiBaseUrl/health'), // Try health endpoint first
+      // Start with a simple ping request to main endpoint
+      final response = await _httpClient.get(
+        Uri.parse('$_apiBaseUrl/poll_properties'),
         headers: _getHeaders(),
       ).timeout(
-        const Duration(seconds: 60), // Longer timeout for cold starts
-        onTimeout: () {
-          print('Health check timeout, trying main endpoint...');
-          // If health endpoint times out, try the main endpoint
-          return _getClient().get(
-            Uri.parse('$_apiBaseUrl/poll_properties'),
-            headers: _getHeaders(),
-          ).timeout(const Duration(seconds: 30));
-        },
+        const Duration(seconds: 90), // Longer timeout for cold starts
       );
       
       print('Wake up response status: ${response.statusCode}');
       return response.statusCode >= 200 && response.statusCode < 500;
     } catch (e) {
       print('Service wake up failed: $e');
-      return false;
+      // Return true to let the main request attempt continue
+      return true;
+    }
+  }
+
+  // Make a single API request with proper error handling
+  static Future<List<PollProperty>> _makeApiRequest() async {
+    try {
+      const url = '$_apiBaseUrl/poll_properties';
+      print('Fetching poll properties from: $url');
+      
+      final response = await _httpClient.get(
+        Uri.parse(url),
+        headers: _getHeaders(),
+      ).timeout(
+        const Duration(seconds: 60),
+        onTimeout: () {
+          throw TimeoutException('Request timed out after 60 seconds');
+        },
+      );
+      
+      print('API response status: ${response.statusCode}');
+      
+      if (response.statusCode == 200) {
+        final responseBody = response.body;
+        print('Response received, length: ${responseBody.length} bytes');
+        
+        if (responseBody.isEmpty) {
+          throw Exception('Empty response body received');
+        }
+        
+        final dynamic decodedData = jsonDecode(responseBody);
+        
+        // Handle both array and object responses
+        List<dynamic> data;
+        if (decodedData is List) {
+          data = decodedData;
+        } else if (decodedData is Map<String, dynamic>) {
+          // If the response is wrapped in an object, look for common keys
+          if (decodedData.containsKey('data')) {
+            data = decodedData['data'] as List<dynamic>;
+          } else if (decodedData.containsKey('poll_properties')) {
+            data = decodedData['poll_properties'] as List<dynamic>;
+          } else if (decodedData.containsKey('properties')) {
+            data = decodedData['properties'] as List<dynamic>;
+          } else {
+            // Single object response, wrap in array
+            data = [decodedData];
+          }
+        } else {
+          throw Exception('Unexpected response format: ${decodedData.runtimeType}');
+        }
+        
+        print('Successfully decoded JSON with ${data.length} poll properties');
+        
+        if (data.isEmpty) {
+          print('No poll properties found in response');
+          return [];
+        }
+        
+        final properties = data.map((json) {
+          try {
+            return PollProperty.fromJson(json as Map<String, dynamic>);
+          } catch (e) {
+            print('Error parsing individual poll property: $e');
+            return null;
+          }
+        }).where((property) => property != null).cast<PollProperty>().toList();
+        
+        print('Successfully parsed ${properties.length} poll properties');
+        return properties;
+      } else {
+        final errorBody = response.body;
+        print('HTTP error ${response.statusCode}: $errorBody');
+        throw HttpException('HTTP ${response.statusCode}: $errorBody');
+      }
+    } catch (e) {
+      print('API request error: $e');
+      rethrow;
     }
   }
 
   // Enhanced fetch with better error handling and cold start detection
   static Future<List<PollProperty>> getPollProperties({bool forceRefresh = false}) async {
-    // First try to load from cache if not forcing refresh
+    print('Getting poll properties (forceRefresh: $forceRefresh)');
+    
+    // Check if we should try to use cache first
     if (!forceRefresh) {
       final cachedProperties = await _loadFromCache();
       if (cachedProperties != null && cachedProperties.isNotEmpty) {
@@ -277,12 +404,8 @@ class PollPropertyApi {
       }
     }
     
-    // Prepare mock data for demo/development
-    final mockPollProperties = _getMockPollProperties();
-    
-    // Check network connectivity first
-    bool hasConnection = await _hasNetworkConnection();
-    
+    // Check network connectivity
+    final hasConnection = await _hasNetworkConnection();
     if (!hasConnection) {
       print('No network connection available, trying to load from cache');
       final cachedProperties = await _loadFromCache();
@@ -291,13 +414,10 @@ class PollPropertyApi {
         return cachedProperties;
       }
       
-      // Return mock data if no cache and no network
-      if (mockPollProperties.isNotEmpty) {
-        print('Using mock poll properties due to no network and no cache');
-        return mockPollProperties;
-      }
-      
-      throw Exception('No network connection and no cached data available');
+      // Return mock data as last resort for no network
+      final mockPollProperties = _getMockPollProperties();
+      print('Using mock poll properties due to no network and no cache');
+      return mockPollProperties;
     }
     
     // Try to wake up the service first (for Render.com cold starts)
@@ -310,163 +430,44 @@ class PollPropertyApi {
       try {
         if (attempt > 0) {
           print('Retry attempt $attempt/$_MAX_RETRIES for poll properties');
-          // Exponential backoff with jitter: 2s, 4s, 8s + random 0-1s
-          final delaySeconds = math.pow(2, attempt).toInt() + math.Random().nextInt(1000);
-          await Future.delayed(Duration(milliseconds: delaySeconds * 1000));
+          // Exponential backoff: 2s, 4s, 8s
+          final delaySeconds = math.pow(2, attempt).toInt();
+          await Future.delayed(Duration(seconds: delaySeconds));
         }
         
-        final url = '$_apiBaseUrl/poll_properties';
-        print('Fetching poll properties from: $url (attempt ${attempt + 1})');
+        final properties = await _makeApiRequest();
         
-        final response = await _getClient().get(
-          Uri.parse(url),
-          headers: _getHeaders(),
-        ).timeout(
-          // Longer timeout for first attempt (cold start), shorter for retries
-          Duration(seconds: attempt == 0 ? 60 : 30),
-        );
-        
-        print('API response status: ${response.statusCode}');
-        
-        if (response.statusCode == 200) {
-          final responseBody = response.body;
-          print('Response received, length: ${responseBody.length} bytes');
-          
-          if (responseBody.isEmpty) {
-            print('Empty response body received');
-            final cachedProperties = await _loadFromCache();
-            if (cachedProperties != null && cachedProperties.isNotEmpty) {
-              return cachedProperties;
-            }
-            return mockPollProperties;
-          }
-          
-          try {
-            final dynamic decodedData = jsonDecode(responseBody);
-            
-            // Handle both array and object responses
-            List<dynamic> data;
-            if (decodedData is List) {
-              data = decodedData;
-            } else if (decodedData is Map && decodedData.containsKey('data')) {
-              data = decodedData['data'] as List<dynamic>;
-            } else if (decodedData is Map && decodedData.containsKey('poll_properties')) {
-              data = decodedData['poll_properties'] as List<dynamic>;
-            } else {
-              print('Unexpected response format: ${decodedData.runtimeType}');
-              print('Response sample: ${responseBody.substring(0, math.min(200, responseBody.length))}');
-              
-              // Try to fall back to cache
-              final cachedProperties = await _loadFromCache();
-              if (cachedProperties != null && cachedProperties.isNotEmpty) {
-                return cachedProperties;
-              }
-              return mockPollProperties;
-            }
-            
-            print('Successfully decoded JSON with ${data.length} poll properties');
-            
-            if (data.isEmpty) {
-              print('No poll properties found in response');
-              return mockPollProperties;
-            }
-            
-            final properties = data.map((json) {
-              try {
-                return PollProperty.fromJson(json as Map<String, dynamic>);
-              } catch (e) {
-                print('Error parsing individual poll property: $e');
-                return null;
-              }
-            }).where((property) => property != null).cast<PollProperty>().toList();
-            
-            print('Successfully parsed ${properties.length} poll properties');
-            
-            // Save to cache for offline use
-            if (properties.isNotEmpty) {
-              await _saveToCache(properties);
-            }
-            
-            return properties;
-          } catch (parseError) {
-            print('JSON parsing error: $parseError');
-            print('Response preview: ${responseBody.substring(0, math.min(500, responseBody.length))}');
-            
-            // Try to fall back to cache if parsing fails
-            final cachedProperties = await _loadFromCache();
-            if (cachedProperties != null && cachedProperties.isNotEmpty) {
-              print('Using cached data due to parsing error');
-              return cachedProperties;
-            }
-            
-            lastException = Exception('Failed to parse poll properties data: $parseError');
-            if (attempt == _MAX_RETRIES - 1) {
-              throw lastException!;
-            }
-          }
-        } else if (response.statusCode == 503 || response.statusCode == 502) {
-          // Service unavailable or bad gateway - likely cold start
-          print('Service temporarily unavailable (${response.statusCode}), retrying...');
-          lastException = Exception('Service temporarily unavailable: ${response.statusCode}');
-          
-          if (attempt == _MAX_RETRIES - 1) {
-            // On final attempt, return cached data if available
-            final cachedProperties = await _loadFromCache();
-            if (cachedProperties != null && cachedProperties.isNotEmpty) {
-              print('Using cached data due to service unavailability');
-              return cachedProperties;
-            }
-            return mockPollProperties;
-          }
-        } else {
-          print('API request failed with status: ${response.statusCode}');
-          print('Error response: ${response.body}');
-          
-          // Don't retry on client errors (400-499) except 408 (timeout)
-          if (response.statusCode >= 400 && response.statusCode < 500 && response.statusCode != 408) {
-            lastException = Exception('Client error: ${response.statusCode}');
-            break;
-          }
-          
-          lastException = Exception('Server error: ${response.statusCode}');
-          
-          // Continue retrying on server errors (500+) and timeouts
-          if (attempt == _MAX_RETRIES - 1) {
-            final cachedProperties = await _loadFromCache();
-            if (cachedProperties != null && cachedProperties.isNotEmpty) {
-              print('Using cached data due to server error');
-              return cachedProperties;
-            }
-            return mockPollProperties;
-          }
+        // Save to cache for offline use
+        if (properties.isNotEmpty) {
+          await _saveToCache(properties);
+          print('Successfully fetched and cached ${properties.length} poll properties');
         }
+        
+        return properties;
       } catch (e) {
         print('Error on attempt ${attempt + 1}/$_MAX_RETRIES: $e');
         lastException = e is Exception ? e : Exception('Network error: $e');
         
-        // If this is the last attempt, try cache before giving up
-        if (attempt == _MAX_RETRIES - 1) {
-          final cachedProperties = await _loadFromCache();
-          if (cachedProperties != null && cachedProperties.isNotEmpty) {
-            print('Using cached poll properties after all attempts failed');
-            return cachedProperties;
-          }
-          
-          // Return mock data as final fallback
-          if (mockPollProperties.isNotEmpty) {
-            print('Using mock data as final fallback');
-            return mockPollProperties;
-          }
+        // Don't retry on certain errors
+        if (e is FormatException) {
+          print('Format error, stopping retries');
+          break;
         }
       }
     }
     
-    // If we get here, all retries failed
-    if (lastException != null) {
-      throw lastException!;
+    // All retries failed, try to use cached data as fallback
+    print('All API attempts failed, trying cache as fallback');
+    final cachedProperties = await _loadFromCache();
+    if (cachedProperties != null && cachedProperties.isNotEmpty) {
+      print('Using cached poll properties after API failure');
+      return cachedProperties;
     }
     
-    throw Exception('Failed to fetch poll properties after all attempts');
+    // No cached data available, use mock data as final fallback
+    final mockPollProperties = _getMockPollProperties();
+    print('Using mock data as final fallback after all attempts failed');
+    return mockPollProperties;
   }
 
   // Helper to refresh data in background without blocking UI
@@ -556,16 +557,17 @@ class PollPropertyApi {
         return null;
       }
       
+      // Match your database structure
       final requestBody = {
         'title': title,
         'location': location,
         'image_url': imageUrl,
-        'suggestions': suggestions,
+        'poll_suggestions': suggestions, // Changed from 'suggestions' to 'poll_suggestions'
       };
       
       print('Request body: ${jsonEncode(requestBody)}');
       
-      final response = await _getClient().post(
+      final response = await _httpClient.post(
         Uri.parse('$_apiBaseUrl/poll_properties'),
         headers: _getHeaders(),
         body: jsonEncode(requestBody),
@@ -589,9 +591,9 @@ class PollPropertyApi {
     }
   }
 
-  // Enhanced vote with better error handling
+  // Enhanced vote with better error handling - updated to use new endpoint
   static Future<bool> voteForSuggestion({
-    required String pollPropertyId,
+    required String pollPropertyId, // Still keeping for backward compatibility
     required String suggestion,
   }) async {
     try {
@@ -603,15 +605,17 @@ class PollPropertyApi {
       
       final userId = await _getUserId();
       
+      // Updated request body for new vote endpoint
       final requestBody = {
-        'suggestion': suggestion,
         'user_id': userId,
+        'suggestion': suggestion,
       };
       
       print('Voting for suggestion: ${jsonEncode(requestBody)}');
       
-      final response = await _getClient().post(
-        Uri.parse('$_apiBaseUrl/poll_properties/$pollPropertyId/vote'),
+      // Using the new /poll_properties/vote endpoint
+      final response = await _httpClient.post(
+        Uri.parse('$_apiBaseUrl/poll_properties/vote'),
         headers: _getHeaders(),
         body: jsonEncode(requestBody),
       ).timeout(
@@ -621,25 +625,46 @@ class PollPropertyApi {
       print('Vote response status: ${response.statusCode}');
       print('Vote response body: ${response.body}');
       
-      return response.statusCode == 200 || response.statusCode == 201;
+      if (response.statusCode == 200 || response.statusCode == 201) {
+        // Clear cache to force refresh of updated data
+        final prefs = await SharedPreferences.getInstance();
+        await prefs.remove(_POLL_PROPERTIES_CACHE_KEY);
+        return true;
+      } else if (response.statusCode == 403) {
+        // User has already voted
+        print('User has already voted for this suggestion');
+        return false;
+      } else if (response.statusCode == 400) {
+        // Bad request - invalid suggestion
+        print('Invalid suggestion for voting');
+        return false;
+      }
+      
+      return false;
     } catch (e) {
       print('Error voting for suggestion: $e');
       return false;
     }
   }
 
-  // Get or generate a user ID for voting
+  // Get or generate a user ID for voting - FIXED VERSION
   static Future<String> _getUserId() async {
     try {
       final prefs = await SharedPreferences.getInstance();
       String? userId = prefs.getString('poll_user_id');
-      if (userId == null) {
-        userId = 'user-${DateTime.now().millisecondsSinceEpoch}';
+      
+      // If no user ID exists, generate one and save it
+      if (userId == null || userId.isEmpty) {
+        userId = 'user_${DateTime.now().millisecondsSinceEpoch}_${math.Random().nextInt(10000)}';
         await prefs.setString('poll_user_id', userId);
+        print('Generated new user ID: $userId');
       }
-      return userId;
+      
+      return userId; // Now guaranteed to be non-null
     } catch (e) {
-      return 'temp-${DateTime.now().millisecondsSinceEpoch}';
+      print('Error getting/generating user ID: $e');
+      // Return a temporary ID if SharedPreferences fails
+      return 'temp_${DateTime.now().millisecondsSinceEpoch}_${math.Random().nextInt(10000)}';
     }
   }
 }

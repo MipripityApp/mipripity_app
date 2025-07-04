@@ -16,6 +16,7 @@ import 'residential_properties_screen.dart';
 import 'commercial_properties_screen.dart';
 import 'land_properties_screen.dart';
 import 'material_properties_screen.dart';
+import 'poll_property_screen.dart'; // Import for PollPropertyScreen
 import 'package:flutter_cache_manager/flutter_cache_manager.dart';
 import 'utils/currency_formatter.dart'; // Import for CurrencyFormatter
 
@@ -1396,24 +1397,39 @@ Widget getNairaRichText(double price, {Color textColor = Colors.white, double fo
                                       },
                                       itemBuilder: (context, index) {
                                         final property = pollProperties[index];
-                                        return Padding(
-                                        padding: const EdgeInsets.symmetric(horizontal: 16.0),
-                                        child: Container(
-                                          decoration: BoxDecoration(
-                                            color: Colors.white,
-                                            borderRadius: BorderRadius.circular(16),
-                                            boxShadow: [
-                                              BoxShadow(
-                                                color: Colors.black.withOpacity(0.08),
-                                                spreadRadius: 0,
-                                                blurRadius: 10,
-                                                offset: const Offset(0, 4),
+                                        return GestureDetector(
+                                          onTap: () {
+                                            // Navigate to poll property screen with isUserLoggedIn set to false
+                                            Navigator.push(
+                                              context,
+                                              MaterialPageRoute(
+                                                builder: (context) => PollPropertyScreen(
+                                                  pollPropertyId: property.id,
+                                                  isUserLoggedIn: false, // User is not logged in on home screen
+                                                ),
                                               ),
-                                            ],
-                                          ),
-                                          child: Column(
-                                            crossAxisAlignment: CrossAxisAlignment.start,
-                                            children: [
+                                            );
+                                            // Add haptic feedback
+                                            HapticFeedback.lightImpact();
+                                          },
+                                          child: Padding(
+                                          padding: const EdgeInsets.symmetric(horizontal: 16.0),
+                                          child: Container(
+                                            decoration: BoxDecoration(
+                                              color: Colors.white,
+                                              borderRadius: BorderRadius.circular(16),
+                                              boxShadow: [
+                                                BoxShadow(
+                                                  color: Colors.black.withOpacity(0.08),
+                                                  spreadRadius: 0,
+                                                  blurRadius: 10,
+                                                  offset: const Offset(0, 4),
+                                                ),
+                                              ],
+                                            ),
+                                            child: Column(
+                                              crossAxisAlignment: CrossAxisAlignment.start,
+                                              children: [
                                               // Property Image
                                               SizedBox(
                                                 height: 180,
@@ -1556,6 +1572,7 @@ Widget getNairaRichText(double price, {Color textColor = Colors.white, double fo
                                               ),
                                             ],
                                           ),
+                                        ),
                                         ),
                                         );
                                       },

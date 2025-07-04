@@ -279,31 +279,49 @@ class _ExplorePageState extends State<ExplorePage> with AutomaticKeepAliveClient
   }
   
   // Fetch poll properties
-  Future<void> _fetchPollProperties() async {
-    if (!mounted) return;
+  // Fetch poll properties with improved error handling
+Future<void> _fetchPollProperties() async {
+  if (!mounted) return;
+ 
+  setState(() {
+    _isPollPropertiesLoading = true;
+  });
+ 
+  try {
+    print('Fetching poll properties...');
+    final properties = await PollPropertyApi.getPollProperties();
+    print('Poll properties fetched successfully: ${properties.length} items');
+   
+    if (mounted) {
+      setState(() {
+        pollProperties = properties;
+        _isPollPropertiesLoading = false;
+      });
+    }
+  } catch (e) {
+    print('Error fetching poll properties: $e');
+    print('Stack trace: ${StackTrace.current}');
     
-    setState(() {
-      _isPollPropertiesLoading = true;
-    });
-    
-    try {
-      final properties = await PollPropertyApi.getPollProperties();
+    if (mounted) {
+      setState(() {
+        _isPollPropertiesLoading = false;
+      });
       
-      if (mounted) {
-        setState(() {
-          pollProperties = properties;
-          _isPollPropertiesLoading = false;
-        });
-      }
-    } catch (e) {
-      print('Error fetching poll properties: $e');
-      if (mounted) {
-        setState(() {
-          _isPollPropertiesLoading = false;
-        });
-      }
+      // Show error message to user
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Failed to load poll properties: ${e.toString()}'),
+          backgroundColor: Colors.red,
+          action: SnackBarAction(
+            label: 'Retry',
+            textColor: Colors.white,
+            onPressed: _fetchPollProperties,
+          ),
+        ),
+      );
     }
   }
+}
   
   // Method to fetch all data from database with improved error handling and fallbacks
   Future<void> _fetchData() async {
@@ -499,6 +517,7 @@ class _ExplorePageState extends State<ExplorePage> with AutomaticKeepAliveClient
       MaterialPageRoute(
         builder: (context) => PollPropertyScreen(
           pollPropertyId: pollPropertyId,
+          isUserLoggedIn: true, // User is logged in on explore screen
         ),
       ),
     );
@@ -922,357 +941,407 @@ class _ExplorePageState extends State<ExplorePage> with AutomaticKeepAliveClient
     );
   }
 
-  // Poll Properties Section
-  Widget _buildPollProperties() {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            const Text(
-              'Poll Properties',
-              style: TextStyle(
-                fontSize: 18,
-                fontWeight: FontWeight.bold,
-                color: Color(0xFF000080),
-              ),
+  // Enhanced Poll Properties Section with better error handling
+Widget _buildPollProperties() {
+  return Column(
+    crossAxisAlignment: CrossAxisAlignment.start,
+    children: [
+      Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          const Text(
+            'Poll Properties',
+            style: TextStyle(
+              fontSize: 18,
+              fontWeight: FontWeight.bold,
+              color: Color(0xFF000080),
             ),
-            GestureDetector(
-              onTap: () {
-                // View all poll properties (could navigate to a dedicated screen)
-                if (pollProperties.isNotEmpty) {
-                  handlePollPropertyClick(pollProperties.first.id);
-                }
-              },
-              child: const Row(
-                children: [
-                  Text(
-                    'View All',
-                    style: TextStyle(
-                      fontSize: 14,
-                      fontWeight: FontWeight.w500,
-                      color: Color(0xFFF39322),
-                    ),
-                  ),
-                  SizedBox(width: 4),
-                  Icon(
-                    Icons.arrow_forward,
-                    color: Color(0xFFF39322),
-                    size: 16,
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ),
-        const SizedBox(height: 16),
-        pollProperties.isEmpty
-            ? _buildEmptyState(
-                icon: Icons.poll,
-                message: 'No poll properties available',
-                actionLabel: 'Refresh',
-                onAction: _fetchPollProperties,
-              )
-            : SizedBox(
-                height: 260,
-                child: ListView.builder(
-                  scrollDirection: Axis.horizontal,
-                  itemCount: pollProperties.length,
-                  itemBuilder: (context, index) {
-                    final property = pollProperties[index];
-                    return _buildPollPropertyCard(property, index);
-                  },
-                ),
-              ),
-      ],
-    );
-  }
-  
-  // Poll Property Card
-  Widget _buildPollPropertyCard(PollProperty property, int index) {
-    // Calculate total votes for display
-    final int totalVotes = property.suggestions.fold(
-      0, (sum, suggestion) => sum + suggestion.votes);
-    
-    return GestureDetector(
-      onTap: () => handlePollPropertyClick(property.id),
-      child: Container(
-        width: 280,
-        margin: EdgeInsets.only(right: index != pollProperties.length - 1 ? 16 : 0),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(15),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.grey.withOpacity(0.2),
-              spreadRadius: 1,
-              blurRadius: 3,
-              offset: const Offset(0, 1),
-            ),
-          ],
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // Property Image
-            Stack(
+          ),
+          GestureDetector(
+            onTap: () {
+              // View all poll properties (could navigate to a dedicated screen)
+              if (pollProperties.isNotEmpty) {
+                handlePollPropertyClick(pollProperties.first.id);
+              }
+            },
+            child: const Row(
               children: [
-                ClipRRect(
-                  borderRadius: const BorderRadius.only(
-                    topLeft: Radius.circular(15),
-                    topRight: Radius.circular(15),
-                  ),
-                  child: property.imageUrl.startsWith('http')
-                      ? Image.network(
-                          property.imageUrl,
-                          height: 150,
-                          width: double.infinity,
-                          fit: BoxFit.cover,
-                          errorBuilder: (context, error, stackTrace) {
-                            return Container(
-                              height: 150,
-                              color: Colors.grey[300],
-                              child: const Icon(
-                                Icons.image_not_supported,
-                                color: Colors.grey,
-                                size: 40,
-                              ),
-                            );
-                          },
-                        )
-                      : Image.asset(
-                          property.imageUrl,
-                          height: 150,
-                          width: double.infinity,
-                          fit: BoxFit.cover,
-                          errorBuilder: (context, error, stackTrace) {
-                            return Container(
-                              height: 150,
-                              color: Colors.grey[300],
-                              child: const Icon(
-                                Icons.image_not_supported,
-                                color: Colors.grey,
-                                size: 40,
-                              ),
-                            );
-                          },
-                        ),
-                ),
-                Positioned(
-                  top: 8,
-                  left: 8,
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 8,
-                      vertical: 4,
-                    ),
-                    decoration: BoxDecoration(
-                      color: const Color(0xFF000080),
-                      borderRadius: BorderRadius.circular(20),
-                    ),
-                    child: const Text(
-                      'Poll',
-                      style: TextStyle(
-                        color: Colors.white,
-                        fontSize: 10,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
+                Text(
+                  'View All',
+                  style: TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w500,
+                    color: Color(0xFFF39322),
                   ),
                 ),
-                Positioned(
-                  top: 8,
-                  right: 8,
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 8,
-                      vertical: 4,
-                    ),
-                    decoration: BoxDecoration(
-                      color: const Color(0xFFF39322),
-                      borderRadius: BorderRadius.circular(20),
-                    ),
-                    child: Text(
-                      '$totalVotes votes',
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 10,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                  ),
+                SizedBox(width: 4),
+                Icon(
+                  Icons.arrow_forward,
+                  color: Color(0xFFF39322),
+                  size: 16,
                 ),
               ],
             ),
-            
-            // Property Details
-            Padding(
-              padding: const EdgeInsets.all(12),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    property.title,
-                    style: const TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.bold,
-                      color: Color(0xFF000080),
-                    ),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                  const SizedBox(height: 4),
-                  Row(
-                    children: [
-                      Icon(
-                        Icons.location_on,
-                        size: 14,
-                        color: Colors.grey[600],
-                      ),
-                      const SizedBox(width: 4),
-                      Expanded(
-                        child: Text(
-                          property.location,
-                          style: TextStyle(
-                            fontSize: 12,
-                            color: Colors.grey[600],
-                          ),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 8),
-                  const Text(
-                    'Top suggestions:',
-                    style: TextStyle(
-                      fontSize: 12,
-                      fontWeight: FontWeight.w500,
-                      color: Color(0xFF000080),
-                    ),
-                  ),
-                  const SizedBox(height: 4),
-                  SizedBox(
-                    height: 36,
-                    child: ListView.builder(
-                      scrollDirection: Axis.horizontal,
-                      itemCount: property.suggestions.length.clamp(0, 3), // Show max 3 suggestions
-                      itemBuilder: (context, i) {
-                        final suggestion = property.suggestions[i];
-                        return Container(
-                          margin: const EdgeInsets.only(right: 8),
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 8,
-                            vertical: 4,
-                          ),
-                          decoration: BoxDecoration(
-                            color: const Color(0xFF000080).withOpacity(0.1),
-                            borderRadius: BorderRadius.circular(12),
-                            border: Border.all(
-                              color: const Color(0xFF000080).withOpacity(0.3),
-                            ),
-                          ),
-                          child: Row(
-                            children: [
-                              Text(
-                                suggestion.suggestion,
-                                style: const TextStyle(
-                                  fontSize: 12,
-                                  color: Color(0xFF000080),
-                                ),
-                              ),
-                              const SizedBox(width: 4),
-                              Container(
-                                padding: const EdgeInsets.all(2),
-                                decoration: const BoxDecoration(
-                                  color: Color(0xFFF39322),
-                                  shape: BoxShape.circle,
-                                ),
-                                child: Text(
-                                  '${suggestion.votes}',
-                                  style: const TextStyle(
-                                    color: Colors.white,
-                                    fontSize: 10,
-                                    fontWeight: FontWeight.bold,
-                                  ),
-                                ),
-                              ),
-                            ],
-                          ),
-                        );
-                      },
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ),
+          ),
+        ],
       ),
-    );
-  }
-  
-  // Poll Properties Shimmer
-  Widget _buildPollPropertiesShimmer() {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            Shimmer.fromColors(
-              baseColor: Colors.grey[300]!,
-              highlightColor: Colors.grey[100]!,
-              child: Container(
-                width: 150,
-                height: 24,
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(5),
-                ),
-              ),
-            ),
-            Shimmer.fromColors(
-              baseColor: Colors.grey[300]!,
-              highlightColor: Colors.grey[100]!,
-              child: Container(
-                width: 80,
-                height: 20,
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(5),
-                ),
-              ),
-            ),
-          ],
-        ),
-        const SizedBox(height: 16),
+      const SizedBox(height: 16),
+      
+      // Show loading shimmer while fetching data
+      if (_isPollPropertiesLoading)
+        _buildPollPropertiesShimmer()
+      else if (pollProperties.isEmpty)
+        _buildEmptyState(
+          icon: Icons.poll,
+          message: 'No poll properties available',
+          actionLabel: 'Retry',
+          onAction: _fetchPollProperties,
+        )
+      else
         SizedBox(
           height: 260,
           child: ListView.builder(
             scrollDirection: Axis.horizontal,
-            itemCount: 3,
+            itemCount: pollProperties.length,
             itemBuilder: (context, index) {
-              return Shimmer.fromColors(
-                baseColor: Colors.grey[300]!,
-                highlightColor: Colors.grey[100]!,
-                child: Container(
-                  width: 280,
-                  margin: EdgeInsets.only(right: index < 2 ? 16 : 0),
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(15),
-                  ),
-                ),
-              );
+              final property = pollProperties[index];
+              return _buildPollPropertyCard(property, index);
             },
           ),
         ),
-      ],
+    ],
+  );
+}
+
+// Enhanced Poll Property Card with better error handling for images
+Widget _buildPollPropertyCard(PollProperty property, int index) {
+  // Calculate total votes for display
+  final int totalVotes = property.suggestions.fold(
+    0, (sum, suggestion) => sum + suggestion.votes);
+  
+  return GestureDetector(
+    onTap: () => handlePollPropertyClick(property.id),
+    child: Container(
+      width: 280,
+      margin: EdgeInsets.only(right: index != pollProperties.length - 1 ? 16 : 0),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(15),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.grey.withOpacity(0.2),
+            spreadRadius: 1,
+            blurRadius: 3,
+            offset: const Offset(0, 1),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Property Image with better error handling
+          Stack(
+            children: [
+              ClipRRect(
+                borderRadius: const BorderRadius.only(
+                  topLeft: Radius.circular(15),
+                  topRight: Radius.circular(15),
+                ),
+                child: _buildPropertyImage(property.imageUrl),
+              ),
+              Positioned(
+                top: 8,
+                left: 8,
+                child: Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 8,
+                    vertical: 4,
+                  ),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF000080),
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                  child: const Text(
+                    'Poll',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 10,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
+              ),
+              Positioned(
+                top: 8,
+                right: 8,
+                child: Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 8,
+                    vertical: 4,
+                  ),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFF39322),
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                  child: Text(
+                    '$totalVotes votes',
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 10,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+          
+          // Property Details
+          Padding(
+            padding: const EdgeInsets.all(12),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  property.title,
+                  style: const TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                    color: Color(0xFF000080),
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+                const SizedBox(height: 4),
+                Row(
+                  children: [
+                    Icon(
+                      Icons.location_on,
+                      size: 14,
+                      color: Colors.grey[600],
+                    ),
+                    const SizedBox(width: 4),
+                    Expanded(
+                      child: Text(
+                        property.location,
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: Colors.grey[600],
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 8),
+                const Text(
+                  'Top suggestions:',
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w500,
+                    color: Color(0xFF000080),
+                  ),
+                ),
+                const SizedBox(height: 4),
+                SizedBox(
+                  height: 36,
+                  child: property.suggestions.isEmpty
+                      ? const Center(
+                          child: Text(
+                            'No suggestions yet',
+                            style: TextStyle(
+                              fontSize: 12,
+                              color: Colors.grey,
+                            ),
+                          ),
+                        )
+                      : ListView.builder(
+                          scrollDirection: Axis.horizontal,
+                          itemCount: property.suggestions.length.clamp(0, 3), // Show max 3 suggestions
+                          itemBuilder: (context, i) {
+                            final suggestion = property.suggestions[i];
+                            return Container(
+                              margin: const EdgeInsets.only(right: 8),
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 8,
+                                vertical: 4,
+                              ),
+                              decoration: BoxDecoration(
+                                color: const Color(0xFF000080).withOpacity(0.1),
+                                borderRadius: BorderRadius.circular(12),
+                                border: Border.all(
+                                  color: const Color(0xFF000080).withOpacity(0.3),
+                                ),
+                              ),
+                              child: Row(
+                                children: [
+                                  Text(
+                                    suggestion.suggestion,
+                                    style: const TextStyle(
+                                      fontSize: 12,
+                                      color: Color(0xFF000080),
+                                    ),
+                                  ),
+                                  const SizedBox(width: 4),
+                                  Container(
+                                    padding: const EdgeInsets.all(2),
+                                    decoration: const BoxDecoration(
+                                      color: Color(0xFFF39322),
+                                      shape: BoxShape.circle,
+                                    ),
+                                    child: Text(
+                                      '${suggestion.votes}',
+                                      style: const TextStyle(
+                                        color: Colors.white,
+                                        fontSize: 10,
+                                        fontWeight: FontWeight.bold,
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            );
+                          },
+                        ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    ),
+  );
+}
+
+// Helper method to build property image with better error handling
+Widget _buildPropertyImage(String imageUrl) {
+  if (imageUrl.isEmpty) {
+    return Container(
+      height: 150,
+      width: double.infinity,
+      color: Colors.grey[300],
+      child: const Icon(
+        Icons.image,
+        color: Colors.grey,
+        size: 40,
+      ),
     );
   }
+
+  if (imageUrl.startsWith('http') || imageUrl.startsWith('https')) {
+    return Image.network(
+      imageUrl,
+      height: 150,
+      width: double.infinity,
+      fit: BoxFit.cover,
+      loadingBuilder: (context, child, loadingProgress) {
+        if (loadingProgress == null) return child;
+        return Container(
+          height: 150,
+          width: double.infinity,
+          color: Colors.grey[200],
+          child: const Center(
+            child: CircularProgressIndicator(),
+          ),
+        );
+      },
+      errorBuilder: (context, error, stackTrace) {
+        print('Error loading network image: $error');
+        return Container(
+          height: 150,
+          width: double.infinity,
+          color: Colors.grey[300],
+          child: const Icon(
+            Icons.image_not_supported,
+            color: Colors.grey,
+            size: 40,
+          ),
+        );
+      },
+    );
+  } else {
+    return Image.asset(
+      imageUrl,
+      height: 150,
+      width: double.infinity,
+      fit: BoxFit.cover,
+      errorBuilder: (context, error, stackTrace) {
+        print('Error loading asset image: $error');
+        return Container(
+          height: 150,
+          width: double.infinity,
+          color: Colors.grey[300],
+          child: const Icon(
+            Icons.image_not_supported,
+            color: Colors.grey,
+            size: 40,
+          ),
+        );
+      },
+    );
+  }
+}
+
+// Enhanced Poll Properties Shimmer (same as before)
+Widget _buildPollPropertiesShimmer() {
+  return Column(
+    crossAxisAlignment: CrossAxisAlignment.start,
+    children: [
+      Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Shimmer.fromColors(
+            baseColor: Colors.grey[300]!,
+            highlightColor: Colors.grey[100]!,
+            child: Container(
+              width: 150,
+              height: 24,
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(5),
+              ),
+            ),
+          ),
+          Shimmer.fromColors(
+            baseColor: Colors.grey[300]!,
+            highlightColor: Colors.grey[100]!,
+            child: Container(
+              width: 80,
+              height: 20,
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(5),
+              ),
+            ),
+          ),
+        ],
+      ),
+      const SizedBox(height: 16),
+      SizedBox(
+        height: 260,
+        child: ListView.builder(
+          scrollDirection: Axis.horizontal,
+          itemCount: 3,
+          itemBuilder: (context, index) {
+            return Shimmer.fromColors(
+              baseColor: Colors.grey[300]!,
+              highlightColor: Colors.grey[100]!,
+              child: Container(
+                width: 280,
+                margin: EdgeInsets.only(right: index < 2 ? 16 : 0),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(15),
+                ),
+              ),
+            );
+          },
+        ),
+      ),
+    ],
+  );
+}
   
   // Popular Areas Grid
   Widget _buildPopularAreas() {
