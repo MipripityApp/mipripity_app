@@ -1,50 +1,8 @@
 import 'package:flutter/material.dart';
 import 'dart:async';
+import 'api/bids_api.dart';
+import 'utils/currency_formatter.dart';
 import 'shared/bottom_navigation.dart';
-
-// Mock data model for bids
-class Bid {
-  final String id;
-  final String listingId;
-  final String listingTitle;
-  final String listingImage;
-  final String listingCategory;
-  final String listingLocation;
-  final double listingPrice;
-  final double bidAmount;
-  final String status; // 'pending', 'accepted', 'rejected', 'expired', 'withdrawn'
-  final String createdAt;
-  final String? responseMessage;
-  final String? responseDate;
-
-  Bid({
-    required this.id,
-    required this.listingId,
-    required this.listingTitle,
-    required this.listingImage,
-    required this.listingCategory,
-    required this.listingLocation,
-    required this.listingPrice,
-    required this.bidAmount,
-    required this.status,
-    required this.createdAt,
-    this.responseMessage,
-    this.responseDate,
-  });
-}
-
-// Format price to Nigerian Naira
-String formatPrice(num amount, {String symbol = '₦'}) {
-  if (amount >= 1e9) {
-    return '$symbol${(amount / 1e9).toStringAsFixed(1)}B';
-  } else if (amount >= 1e6) {
-    return '$symbol${(amount / 1e6).toStringAsFixed(1)}M';
-  } else if (amount >= 1e3) {
-    return '$symbol${(amount / 1e3).toStringAsFixed(1)}K';
-  } else {
-    return '$symbol$amount';
-  }
-}
 
 // Format date to relative time
 String getTimeAgo(String dateString) {
@@ -253,9 +211,9 @@ class BidCard extends StatelessWidget {
                             ),
                           ),
                           const SizedBox(height: 4),
-                          Text(
-                            formatPrice(bid.listingPrice),
-                            style: const TextStyle(
+                          CurrencyFormatter.formatNairaRichText(
+                            bid.listingPrice,
+                            textStyle: const TextStyle(
                               fontSize: 16,
                               fontWeight: FontWeight.bold,
                               color: Color(0xFF000080),
@@ -288,9 +246,9 @@ class BidCard extends StatelessWidget {
                             ),
                           ),
                           const SizedBox(height: 4),
-                          Text(
-                            formatPrice(bid.bidAmount),
-                            style: TextStyle(
+                          CurrencyFormatter.formatNairaRichText(
+                            bid.bidAmount,
+                            textStyle: TextStyle(
                               fontSize: 16,
                               fontWeight: FontWeight.bold,
                               color: bid.bidAmount < bid.listingPrice
@@ -536,14 +494,27 @@ class _EditBidPopupState extends State<EditBidPopup> {
       _isSubmitting = true;
     });
 
-    // Simulate API call
-    Future.delayed(const Duration(seconds: 1), () {
+    // Call the API to update the bid
+    BidsApi.updateBid(
+      bidId: widget.bid.id,
+      bidAmount: bidAmount,
+    ).then((success) {
       if (mounted) {
         setState(() {
           _isSubmitting = false;
         });
-        widget.onSubmit(bidAmount);
-        widget.onClose();
+        
+        if (success) {
+          widget.onSubmit(bidAmount);
+          widget.onClose();
+        } else {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Failed to update bid. Please try again later.'),
+              backgroundColor: Colors.red,
+            ),
+          );
+        }
       }
     });
   }
@@ -585,13 +556,26 @@ class _EditBidPopupState extends State<EditBidPopup> {
               ),
             ),
             const SizedBox(height: 8),
-            Text(
-              'Asking Price: ${formatPrice(widget.bid.listingPrice)}',
-              style: const TextStyle(
-                fontSize: 14,
-                fontWeight: FontWeight.w500,
-                color: Color(0xFFF39322),
-              ),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                const Text(
+                  'Asking Price: ',
+                  style: TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w500,
+                    color: Color(0xFFF39322),
+                  ),
+                ),
+                CurrencyFormatter.formatNairaRichText(
+                  widget.bid.listingPrice,
+                  textStyle: const TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w500,
+                    color: Color(0xFFF39322),
+                  ),
+                ),
+              ],
             ),
             const SizedBox(height: 16),
             TextField(
@@ -667,14 +651,24 @@ class _CancelBidPopupState extends State<CancelBidPopup> {
       _isSubmitting = true;
     });
 
-    // Simulate API call
-    Future.delayed(const Duration(seconds: 1), () {
+    // Call the API to cancel the bid
+    BidsApi.cancelBid(widget.bid.id).then((success) {
       if (mounted) {
         setState(() {
           _isSubmitting = false;
         });
-        widget.onConfirm();
-        widget.onClose();
+        
+        if (success) {
+          widget.onConfirm();
+          widget.onClose();
+        } else {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Failed to cancel bid. Please try again later.'),
+              backgroundColor: Colors.red,
+            ),
+          );
+        }
       }
     });
   }
@@ -723,13 +717,26 @@ class _CancelBidPopupState extends State<CancelBidPopup> {
               ),
             ),
             const SizedBox(height: 8),
-            Text(
-              'Bid Amount: ${formatPrice(widget.bid.bidAmount)}',
-              style: const TextStyle(
-                fontSize: 14,
-                fontWeight: FontWeight.w500,
-                color: Color(0xFFF39322),
-              ),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                const Text(
+                  'Bid Amount: ',
+                  style: TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w500,
+                    color: Color(0xFFF39322),
+                  ),
+                ),
+                CurrencyFormatter.formatNairaRichText(
+                  widget.bid.bidAmount,
+                  textStyle: const TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w500,
+                    color: Color(0xFFF39322),
+                  ),
+                ),
+              ],
             ),
             const SizedBox(height: 24),
             Row(
@@ -828,108 +835,49 @@ class _MyBidsScreenState extends State<MyBidsScreen> with SingleTickerProviderSt
       _loading = true;
     });
 
-    // Simulate API call with delay
-    Future.delayed(const Duration(milliseconds: 300), () {
-      if (mounted) {
-        setState(() {
-          switch (tabIndex) {
-            case 0: // All
-              _filteredBids = _allBids;
-              break;
-            case 1: // Pending
-              _filteredBids = _allBids.where((bid) => bid.status == 'pending').toList();
-              break;
-            case 2: // Accepted
-              _filteredBids = _allBids.where((bid) => bid.status == 'accepted').toList();
-              break;
-            case 3: // Rejected
-              _filteredBids = _allBids.where((bid) => bid.status == 'rejected').toList();
-              break;
-            case 4: // Withdrawn/Expired
-              _filteredBids = _allBids.where((bid) => 
-                bid.status == 'withdrawn' || bid.status == 'expired').toList();
-              break;
-          }
-          _loading = false;
-        });
+    // Filter bids based on tab selection
+    setState(() {
+      switch (tabIndex) {
+        case 0: // All
+          _filteredBids = _allBids;
+          break;
+        case 1: // Pending
+          _filteredBids = _allBids.where((bid) => bid.status == 'pending').toList();
+          break;
+        case 2: // Accepted
+          _filteredBids = _allBids.where((bid) => bid.status == 'accepted').toList();
+          break;
+        case 3: // Rejected
+          _filteredBids = _allBids.where((bid) => bid.status == 'rejected').toList();
+          break;
+        case 4: // Withdrawn/Expired
+          _filteredBids = _allBids.where((bid) => 
+            bid.status == 'withdrawn' || bid.status == 'expired').toList();
+          break;
       }
+      _loading = false;
     });
   }
 
   void _fetchBids() {
-    // Simulate API call
-    Future.delayed(const Duration(seconds: 1), () {
-      if (mounted) {
-        final mockBids = [
-          Bid(
-            id: 'bid-1',
-            listingId: 'listing-1',
-            listingTitle: 'Beautiful 3 Bedroom Apartment',
-            listingImage: 'assets/images/residential1.jpg',
-            listingCategory: 'residential',
-            listingLocation: 'Victoria Island, Lagos',
-            listingPrice: 350000,
-            bidAmount: 320000,
-            status: 'pending',
-            createdAt: DateTime.now().subtract(const Duration(hours: 5)).toIso8601String(),
-          ),
-          Bid(
-            id: 'bid-2',
-            listingId: 'listing-2',
-            listingTitle: 'Commercial Office Space',
-            listingImage: 'assets/images/commercial1.jpg',
-            listingCategory: 'commercial',
-            listingLocation: 'Ikeja, Lagos',
-            listingPrice: 500000,
-            bidAmount: 500000,
-            status: 'accepted',
-            createdAt: DateTime.now().subtract(const Duration(days: 2)).toIso8601String(),
-            responseMessage: 'Thank you for your bid. We are pleased to accept your offer.',
-            responseDate: DateTime.now().subtract(const Duration(days: 1)).toIso8601String(),
-          ),
-          Bid(
-            id: 'bid-3',
-            listingId: 'listing-3',
-            listingTitle: 'Land Property with C of O',
-            listingImage: 'assets/images/land1.jpeg',
-            listingCategory: 'land',
-            listingLocation: 'Lekki, Lagos',
-            listingPrice: 250000,
-            bidAmount: 200000,
-            status: 'rejected',
-            createdAt: DateTime.now().subtract(const Duration(days: 5)).toIso8601String(),
-            responseMessage: 'Thank you for your interest. Unfortunately, your bid was too low for consideration.',
-            responseDate: DateTime.now().subtract(const Duration(days: 3)).toIso8601String(),
-          ),
-          Bid(
-            id: 'bid-4',
-            listingId: 'listing-4',
-            listingTitle: 'Premium Building Materials',
-            listingImage: 'assets/images/material1.jpg',
-            listingCategory: 'material',
-            listingLocation: 'Ajah, Lagos',
-            listingPrice: 150000,
-            bidAmount: 145000,
-            status: 'withdrawn',
-            createdAt: DateTime.now().subtract(const Duration(days: 10)).toIso8601String(),
-          ),
-          Bid(
-            id: 'bid-5',
-            listingId: 'listing-5',
-            listingTitle: 'Luxury 5 Bedroom Duplex',
-            listingImage: 'assets/images/residential2.jpg',
-            listingCategory: 'residential',
-            listingLocation: 'Ikoyi, Lagos',
-            listingPrice: 750000,
-            bidAmount: 700000,
-            status: 'pending',
-            createdAt: DateTime.now().subtract(const Duration(days: 1)).toIso8601String(),
-          ),
-        ];
+    setState(() {
+      _loading = true;
+      _error = null;
+    });
 
+    // Get bids from API
+    BidsApi.getUserBids(forceRefresh: true).then((bids) {
+      if (mounted) {
         setState(() {
-          _allBids = mockBids;
-          _filteredBids = mockBids;
+          _allBids = bids;
+          _filteredBids = bids;
+          _loading = false;
+        });
+      }
+    }).catchError((error) {
+      if (mounted) {
+        setState(() {
+          _error = 'Failed to load bids: ${error.toString()}';
           _loading = false;
         });
       }
@@ -946,46 +894,43 @@ class _MyBidsScreenState extends State<MyBidsScreen> with SingleTickerProviderSt
       _loading = true;
     });
 
-    // Simulate search delay
-    Future.delayed(const Duration(milliseconds: 300), () {
-      if (mounted) {
-        final lowercaseQuery = query.toLowerCase();
-        setState(() {
-          // First filter by tab
-          List<Bid> tabFilteredBids;
-          switch (_tabController.index) {
-            case 0: // All
-              tabFilteredBids = _allBids;
-              break;
-            case 1: // Pending
-              tabFilteredBids = _allBids.where((bid) => bid.status == 'pending').toList();
-              break;
-            case 2: // Accepted
-              tabFilteredBids = _allBids.where((bid) => bid.status == 'accepted').toList();
-              break;
-            case 3: // Rejected
-              tabFilteredBids = _allBids.where((bid) => bid.status == 'rejected').toList();
-              break;
-            case 4: // Withdrawn/Expired
-              tabFilteredBids = _allBids.where((bid) => 
-                bid.status == 'withdrawn' || bid.status == 'expired').toList();
-              break;
-            default:
-              tabFilteredBids = _allBids;
-          }
-          
-          // Then filter by search query
-          _filteredBids = tabFilteredBids.where((bid) {
-            return bid.listingTitle.toLowerCase().contains(lowercaseQuery) ||
-                bid.listingCategory.toLowerCase().contains(lowercaseQuery) ||
-                bid.listingLocation.toLowerCase().contains(lowercaseQuery) ||
-                bid.status.toLowerCase().contains(lowercaseQuery) ||
-                formatPrice(bid.bidAmount).toLowerCase().contains(lowercaseQuery);
-          }).toList();
-          
-          _loading = false;
-        });
-      }
+    // Filter by search query
+    final lowercaseQuery = query.toLowerCase();
+    
+    // First filter by tab
+    List<Bid> tabFilteredBids;
+    switch (_tabController.index) {
+      case 0: // All
+        tabFilteredBids = _allBids;
+        break;
+      case 1: // Pending
+        tabFilteredBids = _allBids.where((bid) => bid.status == 'pending').toList();
+        break;
+      case 2: // Accepted
+        tabFilteredBids = _allBids.where((bid) => bid.status == 'accepted').toList();
+        break;
+      case 3: // Rejected
+        tabFilteredBids = _allBids.where((bid) => bid.status == 'rejected').toList();
+        break;
+      case 4: // Withdrawn/Expired
+        tabFilteredBids = _allBids.where((bid) => 
+          bid.status == 'withdrawn' || bid.status == 'expired').toList();
+        break;
+      default:
+        tabFilteredBids = _allBids;
+    }
+    
+    // Then filter by search query
+    setState(() {
+      _filteredBids = tabFilteredBids.where((bid) {
+        return bid.listingTitle.toLowerCase().contains(lowercaseQuery) ||
+            bid.listingCategory.toLowerCase().contains(lowercaseQuery) ||
+            bid.listingLocation.toLowerCase().contains(lowercaseQuery) ||
+            bid.status.toLowerCase().contains(lowercaseQuery) ||
+            CurrencyFormatter.formatNaira(bid.bidAmount).toLowerCase().contains(lowercaseQuery);
+      }).toList();
+      
+      _loading = false;
     });
   }
 
@@ -995,37 +940,33 @@ class _MyBidsScreenState extends State<MyBidsScreen> with SingleTickerProviderSt
       _loading = true;
     });
 
-    // Simulate sorting delay
-    Future.delayed(const Duration(milliseconds: 300), () {
-      if (mounted) {
-        setState(() {
-          switch (sortBy) {
-            case 'newest':
-              _filteredBids.sort((a, b) => 
-                DateTime.parse(b.createdAt).compareTo(DateTime.parse(a.createdAt)));
-              break;
-            case 'oldest':
-              _filteredBids.sort((a, b) => 
-                DateTime.parse(a.createdAt).compareTo(DateTime.parse(b.createdAt)));
-              break;
-            case 'highest':
-              _filteredBids.sort((a, b) => b.bidAmount.compareTo(a.bidAmount));
-              break;
-            case 'lowest':
-              _filteredBids.sort((a, b) => a.bidAmount.compareTo(b.bidAmount));
-              break;
-            case 'percentage_highest':
-              _filteredBids.sort((a, b) => 
-                (b.bidAmount / b.listingPrice).compareTo(a.bidAmount / a.listingPrice));
-              break;
-            case 'percentage_lowest':
-              _filteredBids.sort((a, b) => 
-                (a.bidAmount / a.listingPrice).compareTo(b.bidAmount / b.listingPrice));
-              break;
-          }
-          _loading = false;
-        });
+    // Sort bids based on the selected sorting option
+    setState(() {
+      switch (sortBy) {
+        case 'newest':
+          _filteredBids.sort((a, b) => 
+            DateTime.parse(b.createdAt).compareTo(DateTime.parse(a.createdAt)));
+          break;
+        case 'oldest':
+          _filteredBids.sort((a, b) => 
+            DateTime.parse(a.createdAt).compareTo(DateTime.parse(b.createdAt)));
+          break;
+        case 'highest':
+          _filteredBids.sort((a, b) => b.bidAmount.compareTo(a.bidAmount));
+          break;
+        case 'lowest':
+          _filteredBids.sort((a, b) => a.bidAmount.compareTo(b.bidAmount));
+          break;
+        case 'percentage_highest':
+          _filteredBids.sort((a, b) => 
+            (b.bidAmount / b.listingPrice).compareTo(a.bidAmount / a.listingPrice));
+          break;
+        case 'percentage_lowest':
+          _filteredBids.sort((a, b) => 
+            (a.bidAmount / a.listingPrice).compareTo(b.bidAmount / b.listingPrice));
+          break;
       }
+      _loading = false;
     });
   }
 
@@ -1061,27 +1002,12 @@ class _MyBidsScreenState extends State<MyBidsScreen> with SingleTickerProviderSt
   void _updateBid(double newAmount) {
     if (_selectedBid == null) return;
 
-    // Simulate API call to update bid
     setState(() {
-      final index = _allBids.indexWhere((bid) => bid.id == _selectedBid!.id);
-      if (index != -1) {
-        _allBids[index] = Bid(
-          id: _selectedBid!.id,
-          listingId: _selectedBid!.listingId,
-          listingTitle: _selectedBid!.listingTitle,
-          listingImage: _selectedBid!.listingImage,
-          listingCategory: _selectedBid!.listingCategory,
-          listingLocation: _selectedBid!.listingLocation,
-          listingPrice: _selectedBid!.listingPrice,
-          bidAmount: newAmount,
-          status: _selectedBid!.status,
-          createdAt: _selectedBid!.createdAt,
-          responseMessage: _selectedBid!.responseMessage,
-          responseDate: _selectedBid!.responseDate,
-        );
-      }
-      _filterBidsByTab(_tabController.index);
+      _loading = true;
     });
+    
+    // Refresh bids from API after successful update
+    _fetchBids();
 
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(
@@ -1094,27 +1020,12 @@ class _MyBidsScreenState extends State<MyBidsScreen> with SingleTickerProviderSt
   void _cancelBid() {
     if (_selectedBid == null) return;
 
-    // Simulate API call to cancel bid
     setState(() {
-      final index = _allBids.indexWhere((bid) => bid.id == _selectedBid!.id);
-      if (index != -1) {
-        _allBids[index] = Bid(
-          id: _selectedBid!.id,
-          listingId: _selectedBid!.listingId,
-          listingTitle: _selectedBid!.listingTitle,
-          listingImage: _selectedBid!.listingImage,
-          listingCategory: _selectedBid!.listingCategory,
-          listingLocation: _selectedBid!.listingLocation,
-          listingPrice: _selectedBid!.listingPrice,
-          bidAmount: _selectedBid!.bidAmount,
-          status: 'withdrawn',
-          createdAt: _selectedBid!.createdAt,
-          responseMessage: _selectedBid!.responseMessage,
-          responseDate: _selectedBid!.responseDate,
-        );
-      }
-      _filterBidsByTab(_tabController.index);
+      _loading = true;
     });
+    
+    // Refresh bids from API after successful cancellation
+    _fetchBids();
 
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(

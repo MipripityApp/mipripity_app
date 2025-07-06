@@ -20,9 +20,34 @@ class DatabaseHelper {
     
     return await openDatabase(
       path,
-      version: 1,
+      version: 2, // Increased version to handle migration
       onCreate: _onCreate,
+      onUpgrade: _onUpgrade,
     );
+  }
+
+  // Handle database migrations
+  Future<void> _onUpgrade(Database db, int oldVersion, int newVersion) async {
+    if (oldVersion < 2) {
+      // Add bids table if upgrading from version 1 to 2
+      await db.execute('''
+        CREATE TABLE bids (
+          id TEXT PRIMARY KEY,
+          listing_id TEXT NOT NULL,
+          listing_title TEXT NOT NULL,
+          listing_image TEXT NOT NULL,
+          listing_category TEXT NOT NULL,
+          listing_location TEXT NOT NULL,
+          listing_price REAL NOT NULL,
+          bid_amount REAL NOT NULL,
+          status TEXT NOT NULL,
+          created_at TEXT NOT NULL,
+          response_message TEXT,
+          response_date TEXT,
+          user_id TEXT
+        )
+      ''');
+    }
   }
 
   Future<void> _onCreate(Database db, int version) async {
@@ -103,8 +128,92 @@ class DatabaseHelper {
       )
     ''');
 
+    // Create bids table for storing user bids
+    await db.execute('''
+      CREATE TABLE bids (
+        id TEXT PRIMARY KEY,
+        listing_id TEXT NOT NULL,
+        listing_title TEXT NOT NULL,
+        listing_image TEXT NOT NULL,
+        listing_category TEXT NOT NULL,
+        listing_location TEXT NOT NULL,
+        listing_price REAL NOT NULL,
+        bid_amount REAL NOT NULL,
+        status TEXT NOT NULL,
+        created_at TEXT NOT NULL,
+        response_message TEXT,
+        response_date TEXT,
+        user_id TEXT
+      )
+    ''');
+
     // Insert initial data
     await _insertInitialData(db);
+  }
+
+  // CRUD operations for bids
+  Future<List<Map<String, dynamic>>> getBids() async {
+    final db = await database;
+    return await db.query('bids');
+  }
+
+  Future<int> saveBid(Map<String, dynamic> bid) async {
+    final db = await database;
+    return await db.insert(
+      'bids',
+      bid,
+      conflictAlgorithm: ConflictAlgorithm.replace,
+    );
+  }
+
+  Future<int> updateBidAmount(String bidId, double bidAmount) async {
+    final db = await database;
+    return await db.update(
+      'bids',
+      {'bid_amount': bidAmount},
+      where: 'id = ?',
+      whereArgs: [bidId],
+    );
+  }
+
+  Future<int> updateBidStatus(String bidId, String status) async {
+    final db = await database;
+    return await db.update(
+      'bids',
+      {'status': status},
+      where: 'id = ?',
+      whereArgs: [bidId],
+    );
+  }
+
+  Future<Map<String, dynamic>?> getBidById(String bidId) async {
+    final db = await database;
+    final results = await db.query(
+      'bids',
+      where: 'id = ?',
+      whereArgs: [bidId],
+      limit: 1,
+    );
+    
+    return results.isNotEmpty ? results.first : null;
+  }
+
+  Future<List<Map<String, dynamic>>> getBidsByStatus(String status) async {
+    final db = await database;
+    return await db.query(
+      'bids',
+      where: 'status = ?',
+      whereArgs: [status],
+    );
+  }
+
+  Future<int> deleteBid(String bidId) async {
+    final db = await database;
+    return await db.delete(
+      'bids',
+      where: 'id = ?',
+      whereArgs: [bidId],
+    );
   }
 
   Future<void> _insertInitialData(Database db) async {
@@ -600,6 +709,7 @@ class DatabaseHelper {
     await db.delete('commercial_properties');
     await db.delete('land_properties');
     await db.delete('material_properties');
+    await db.delete('bids'); // Also clear bids table
     await _insertInitialData(db);
   }
 }
