@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'dart:convert';
+import 'dart:io';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:image_picker/image_picker.dart';
 import 'services/database_service.dart';
 import 'services/user_service.dart';
 import 'services/image_upload_service.dart';
@@ -11,6 +13,12 @@ class AddViewModel extends ChangeNotifier {
   bool showForm = false;
   bool formSubmitted = false;
   String activeTab = 'add';
+  
+  // List to store uploaded image URLs
+  List<String> uploadedImageUrls = [];
+  
+  // List to store local image files before upload
+  List<File> selectedImages = [];
 
   // List of material items
   final List<String> materialItems = [
@@ -42,7 +50,7 @@ class AddViewModel extends ChangeNotifier {
     selectedCategory = category;
     showForm = true;
     formSubmitted = false;
-    errorMessage = null; // Clear any previous errors
+    errorMessage = null;
     notifyListeners();
   }
 
@@ -52,16 +60,236 @@ class AddViewModel extends ChangeNotifier {
     formSubmitted = false;
     errorMessage = null;
     isSubmitting = false;
+    selectedImages.clear();
+    uploadedImageUrls.clear();
     notifyListeners();
   }
 
   // Database service instance
   final DatabaseService _databaseService = DatabaseService();
   final UserService _userService = UserService();
+  final ImagePicker _picker = ImagePicker();
   
   // Error handling
   String? errorMessage;
   bool isSubmitting = false;
+  
+  // Method to pick multiple images from gallery (Fixed version)
+  Future<void> pickImages() async {
+    try {
+      // Use getMultiImage() instead of pickMultipleImages()
+      final List<XFile> pickedFiles = await _picker.pickMultiImage(
+        maxWidth: 1920,
+        maxHeight: 1080,
+        imageQuality: 85,
+      );
+      
+      if (pickedFiles.isNotEmpty) {
+        // Clear previous selections
+        selectedImages.clear();
+        
+        // Convert XFile to File and add to list
+        for (XFile xFile in pickedFiles) {
+          final File imageFile = File(xFile.path);
+          
+          // Validate image before adding
+          if (ImageUploadService.isValidImageFile(imageFile)) {
+            // Check file size
+            if (await ImageUploadService.isValidFileSize(imageFile)) {
+              selectedImages.add(imageFile);
+            } else {
+              print('Skipping image ${xFile.name}: File too large');
+            }
+          } else {
+            print('Skipping image ${xFile.name}: Invalid format');
+          }
+        }
+        
+        if (selectedImages.isNotEmpty) {
+          print('Selected ${selectedImages.length} valid images');
+          errorMessage = null;
+        } else {
+          errorMessage = 'No valid images selected. Please choose images under 10MB.';
+        }
+        
+        notifyListeners();
+      }
+    } catch (e) {
+      errorMessage = 'Error picking images: ${e.toString()}';
+      notifyListeners();
+      print("Error in pickImages: $e");
+    }
+  }
+
+  // Alternative method for older versions of image_picker
+  Future<void> pickImagesAlternative() async {
+    try {
+      // For older versions that don't support pickMultiImage
+      final XFile? pickedFile = await _picker.pickImage(
+        source: ImageSource.gallery,
+        maxWidth: 1920,
+        maxHeight: 1080,
+        imageQuality: 85,
+      );
+      
+      if (pickedFile != null) {
+        final File imageFile = File(pickedFile.path);
+        
+        // Validate image before adding
+        if (ImageUploadService.isValidImageFile(imageFile)) {
+          // Check file size
+          if (await ImageUploadService.isValidFileSize(imageFile)) {
+            selectedImages.add(imageFile);
+            errorMessage = null;
+            print('Selected image: ${pickedFile.path}');
+          } else {
+            errorMessage = 'Image is too large. Maximum size is 10MB.';
+          }
+        } else {
+          errorMessage = 'Invalid image format. Please select a valid image.';
+        }
+        
+        notifyListeners();
+      }
+    } catch (e) {
+      errorMessage = 'Error picking image: ${e.toString()}';
+      notifyListeners();
+      print("Error in pickImagesAlternative: $e");
+    }
+  }
+
+  // Method to pick a single image from gallery
+  Future<void> pickSingleImage() async {
+    try {
+      final XFile? pickedFile = await _picker.pickImage(
+        source: ImageSource.gallery,
+        maxWidth: 1920,
+        maxHeight: 1080,
+        imageQuality: 85,
+      );
+      
+      if (pickedFile != null) {
+        final File imageFile = File(pickedFile.path);
+        
+        // Validate image before adding
+        if (ImageUploadService.isValidImageFile(imageFile)) {
+          // Check file size
+          if (await ImageUploadService.isValidFileSize(imageFile)) {
+            selectedImages.add(imageFile);
+            errorMessage = null;
+            print('Selected image: ${pickedFile.path}');
+          } else {
+            errorMessage = 'Image is too large. Maximum size is 10MB.';
+          }
+        } else {
+          errorMessage = 'Invalid image format. Please select a valid image.';
+        }
+        
+        notifyListeners();
+      }
+    } catch (e) {
+      errorMessage = 'Error picking image: ${e.toString()}';
+      notifyListeners();
+      print("Error in pickSingleImage: $e");
+    }
+  }
+
+  // Method to upload selected images to Cloudinary
+  Future<bool> uploadSelectedImages() async {
+    if (selectedImages.isEmpty) {
+      print('No images selected for upload');
+      return true; // Return true if no images to upload
+    }
+
+    try {
+      print('Uploading ${selectedImages.length} images to Cloudinary...');
+      
+      // Convert File objects to file paths
+      List<String> imagePaths = selectedImages.map((file) => file.path).toList();
+      
+      // Upload using the existing service
+      UploadResult uploadResult = await ImageUploadService.uploadMultipleToCloudinary(imagePaths);
+      
+      if (uploadResult.isSuccess) {
+        // All images uploaded successfully
+        uploadedImageUrls.addAll(uploadResult.successUrls);
+        print('Successfully uploaded ${uploadResult.successUrls.length} images');
+        return true;
+      } else if (uploadResult.isPartialSuccess) {
+        // Some images failed, but some succeeded
+        uploadedImageUrls.addAll(uploadResult.successUrls);
+        print('Partially successful upload: ${uploadResult.successUrls.length} succeeded, ${uploadResult.failedPaths.length} failed');
+        
+        // Show warning but continue
+        errorMessage = 'Some images failed to upload. ${uploadResult.successUrls.length} images uploaded successfully.';
+        notifyListeners();
+        return true;
+      } else {
+        // All uploads failed
+        String errorReason = uploadResult.errorMessage ?? 'Unknown error';
+        errorMessage = 'Failed to upload images: $errorReason';
+        notifyListeners();
+        return false;
+      }
+    } catch (e) {
+      errorMessage = 'Error uploading images: ${e.toString()}';
+      notifyListeners();
+      print('Error in uploadSelectedImages: $e');
+      return false;
+    }
+  }
+
+  // Remove a selected image
+  void removeSelectedImage(int index) {
+    if (index >= 0 && index < selectedImages.length) {
+      selectedImages.removeAt(index);
+      notifyListeners();
+    }
+  }
+
+  // Remove an uploaded image
+  void removeUploadedImage(int index) {
+    if (index >= 0 && index < uploadedImageUrls.length) {
+      uploadedImageUrls.removeAt(index);
+      notifyListeners();
+    }
+  }
+
+  // Get the current user's email
+  Future<String?> _getCurrentUserEmail() async {
+    try {
+      // First try to get user profile
+      final userProfile = await _userService.getCurrentUserProfile();
+      if (userProfile != null && userProfile['email'] != null) {
+        print('Retrieved user email: ${userProfile['email']}');
+        return userProfile['email'] as String;
+      }
+      
+      // If profile doesn't have email, try using the ID to fetch details
+      final userId = await _userService.getCurrentUserId();
+      if (userId != null) {
+        final userDetails = await _userService.getUserById(userId);
+        if (userDetails != null && userDetails['email'] != null) {
+          print('Retrieved user email by ID: ${userDetails['email']}');
+          return userDetails['email'] as String;
+        }
+      }
+      
+      // Last resort: check shared preferences for cached email
+      final prefs = await SharedPreferences.getInstance();
+      final cachedEmail = prefs.getString('user_email');
+      if (cachedEmail != null && cachedEmail.isNotEmpty) {
+        print('Using cached email from preferences: $cachedEmail');
+        return cachedEmail;
+      }
+      
+      print('Warning: Could not retrieve user email');
+      return null;
+    } catch (e) {
+      print('Error getting user email: $e');
+      return null;
+    }
+  }
 
   // New submitProperty method to call the PropertyApi
   Future<bool> submitProperty(Map<String, dynamic> data) async {
@@ -76,36 +304,39 @@ class AddViewModel extends ChangeNotifier {
       errorMessage = null;
       notifyListeners();
       
-      // Get current user ID from preferences directly - don't try to create a new user
+      // Get current user ID
       int userId;
       try {
-        // Only get the existing user ID, don't try to create a new one
         final currentUserId = await _userService.getCurrentUserId();
         if (currentUserId != null) {
           userId = currentUserId;
           print('Using existing user ID: $userId');
         } else {
-          // If no user ID found, use default
           print('No user ID found, using default ID');
-          userId = 1; // Use default ID as fallback
-          // Save this default ID to preferences
+          userId = 1;
           await _userService.saveCurrentUserId(userId);
         }
       } catch (e) {
-        // If user service fails, use a default user ID
         print('Error getting user ID: $e, using default ID');
-        userId = 1; // Use default ID as fallback
+        userId = 1;
         try {
           await _userService.saveCurrentUserId(userId);
-        } catch (_) {
-          // Ignore errors when saving default user ID
-        }
+        } catch (_) {}
+      }
+      
+      // Get user email and add to data
+      final userEmail = await _getCurrentUserEmail();
+      if (userEmail != null && userEmail.isNotEmpty) {
+        data['lister_email'] = userEmail;
+      } else {
+        data['lister_email'] = 'demo@mipripity.com';
+        print('Using fallback email: demo@mipripity.com');
       }
       
       // Process form data
       print('Submitting property to API: ${data['title']}');
       
-      // Make sure property type is set based on category if not already defined
+      // Set property type based on category
       if (!data.containsKey('type') && selectedCategory != null) {
         if (isResidentialProperty(selectedCategory!)) {
           data['type'] = 'residential';
@@ -121,34 +352,26 @@ class AddViewModel extends ChangeNotifier {
         print('Set property type to ${data['type']} based on category $selectedCategory');
       }
       
-      // Upload images to Cloudinary first
-      print('Uploading images to Cloudinary...');
-      List<String> imagePaths = List<String>.from(data['images'] ?? []);
+      // Generate a unique property_id
+      final timestamp = DateTime.now().millisecondsSinceEpoch;
+      final randomPart = (userId * 1000 + timestamp % 1000).toString().padLeft(4, '0');
+      data['property_id'] = 'PROP-${timestamp.toString().substring(timestamp.toString().length - 6)}-$randomPart';
+      print('Generated property_id: ${data['property_id']}');
       
-      if (imagePaths.isNotEmpty) {
-        // Filter out blob URLs that can't be processed
-        List<String> processableImages = imagePaths.where((path) => 
-          !path.startsWith('blob:') || path.startsWith('http')
-        ).toList();
+      // Upload images first
+      if (selectedImages.isNotEmpty) {
+        print('Uploading ${selectedImages.length} selected images...');
+        bool uploadSuccess = await uploadSelectedImages();
         
-        if (processableImages.isEmpty && imagePaths.isNotEmpty) {
-          // All images are blob URLs and can't be processed
-          print('Warning: All selected images are blob URLs which cannot be processed directly.');
-          // Continue with submission but with empty images array
-          data['images'] = [];
-        } else {
-          List<String> uploadedImageUrls = await ImageUploadService.uploadMultipleToCloudinary(processableImages);
-          
-          if (uploadedImageUrls.isEmpty && processableImages.isNotEmpty) {
-            print('Warning: Failed to upload images. Continuing with submission without images.');
-            data['images'] = [];
-          } else {
-            // Replace local paths with Cloudinary URLs
-            data['images'] = uploadedImageUrls;
-            print('Uploaded ${uploadedImageUrls.length}/${processableImages.length} images to Cloudinary');
-          }
+        if (!uploadSuccess) {
+          print('Image upload failed, cannot proceed with property submission');
+          return false;
         }
       }
+      
+      // Add uploaded image URLs to data
+      data['images'] = uploadedImageUrls;
+      print('Added ${uploadedImageUrls.length} image URLs to property data');
       
       // Add timestamp and additional metadata
       data['submittedAt'] = DateTime.now().toIso8601String();
@@ -162,9 +385,12 @@ class AddViewModel extends ChangeNotifier {
       if (success) {
         print('Property submitted successfully to API');
         formSubmitted = true;
-        
-        // Show success message
         _showSuccessMessage();
+        
+        // Clear images after successful submission
+        selectedImages.clear();
+        uploadedImageUrls.clear();
+        
         return true;
       } else {
         errorMessage = 'Failed to submit property to API. Please check your internet connection and try again.';
@@ -181,37 +407,57 @@ class AddViewModel extends ChangeNotifier {
     }
   }
 
-  // Legacy method that uses database service - we'll update this to use our new submitProperty method
+  // Legacy method that uses database service
   Future<void> submitForm(Map<String, dynamic> data) async {
     try {
-      // Prepare the form data before submission
-      _prepareFormData(data);
+      // Upload images first if any are selected
+      if (selectedImages.isNotEmpty) {
+        print('Uploading ${selectedImages.length} selected images before form submission...');
+        bool uploadSuccess = await uploadSelectedImages();
+        
+        if (!uploadSuccess) {
+          print('Image upload failed, cannot proceed with form submission');
+          return;
+        }
+      }
       
-      // First, attempt to submit via the API
+      // Add uploaded image URLs to form data
+      data['images'] = uploadedImageUrls;
+      print('Added ${uploadedImageUrls.length} image URLs to form data');
+      
+      // Prepare the form data
+      await _prepareFormData(data);
+      
+      // Generate property_id if not present
+      if (!data.containsKey('property_id') || data['property_id'] == null || data['property_id'].toString().isEmpty) {
+        final timestamp = DateTime.now().millisecondsSinceEpoch;
+        final userId = await _userService.getCurrentUserId() ?? 1;
+        final randomPart = (userId * 1000 + timestamp % 1000).toString().padLeft(4, '0');
+        data['property_id'] = 'PROP-${timestamp.toString().substring(timestamp.toString().length - 6)}-$randomPart';
+        print('Generated property_id for form submission: ${data['property_id']}');
+      }
+      
+      // Try API submission first
       bool apiSuccess = await submitProperty(data);
       
       if (apiSuccess) {
-        // If API submission was successful, we're done
         formSubmitted = true;
         _showSuccessMessage();
         return;
       }
       
-      // If API submission failed, fall back to database submission
+      // Fallback to database submission
       print('API submission failed, falling back to database submission');
       
-      // Get current user ID from preferences directly - don't try to create a new user
       int userId;
       try {
-        // Only get the existing user ID, don't try to create a new one
         final currentUserId = await _userService.getCurrentUserId();
         userId = currentUserId ?? 1;
       } catch (e) {
         print('Error getting user ID for database submission: $e, using default ID');
-        userId = 1; // Use default ID as fallback
+        userId = 1;
       }
       
-      // Submit to database as fallback
       final success = await _databaseService.submitCompleteListing(
         formData: data,
         userId: userId,
@@ -220,11 +466,13 @@ class AddViewModel extends ChangeNotifier {
       if (success) {
         print('Listing submitted successfully to database');
         formSubmitted = true;
-        
-        // Show success message
         _showSuccessMessage();
+        
+        // Clear images after successful submission
+        selectedImages.clear();
+        uploadedImageUrls.clear();
       } else {
-        // Try one more approach - save to shared preferences for later sync
+        // Save to shared preferences for later sync
         try {
           final prefs = await SharedPreferences.getInstance();
           final pendingListings = prefs.getStringList('pending_listings') ?? [];
@@ -234,6 +482,10 @@ class AddViewModel extends ChangeNotifier {
           formSubmitted = true;
           _showSuccessMessage();
           print('Listing saved to pending submissions for later sync');
+          
+          // Clear images after successful save
+          selectedImages.clear();
+          uploadedImageUrls.clear();
         } catch (e) {
           errorMessage = 'Failed to submit listing. Please try again later.';
           print('Failed to save listing to shared preferences: $e');
@@ -249,27 +501,45 @@ class AddViewModel extends ChangeNotifier {
   }
 
   // Prepare form data for submission
-  void _prepareFormData(Map<String, dynamic> data) {
-    // Set default values for missing fields
+  Future<bool> _prepareFormData(Map<String, dynamic> data) async {
+    // Set default values
     data['submittedAt'] = DateTime.now().toIso8601String();
     data['status'] = data['status'] ?? 'Available';
     data['category'] = selectedCategory ?? data['category'] ?? 'Unknown';
     
-    // Ensure lister_whatsapp field is set
+    // Generate property_id if not present
+    if (!data.containsKey('property_id') || data['property_id'] == null || data['property_id'].toString().isEmpty) {
+      final timestamp = DateTime.now().millisecondsSinceEpoch;
+      final userId = await _userService.getCurrentUserId() ?? 1;
+      final randomPart = (userId * 1000 + timestamp % 1000).toString().padLeft(4, '0');
+      data['property_id'] = 'PROP-${timestamp.toString().substring(timestamp.toString().length - 6)}-$randomPart';
+      print('Generated property_id for form preparation: ${data['property_id']}');
+    }
+    
+    // Set lister_whatsapp
     if (data['whatsappNumber'] != null && data['whatsappNumber'].toString().isNotEmpty) {
       data['lister_whatsapp'] = data['whatsappNumber'];
     } else if (data['lister_whatsapp'] == null || data['lister_whatsapp'].toString().isEmpty) {
-      data['lister_whatsapp'] = '+2348000000000'; // Default number
+      data['lister_whatsapp'] = '+2348000000000';
     }
     
-    // Clean up blob URLs from images array
-    if (data['images'] != null && data['images'] is List) {
-      List<String> images = List<String>.from(data['images']);
-      data['images'] = images.where((url) => !url.startsWith('blob:')).toList();
+    // Set lister_email
+    final userEmail = await _getCurrentUserEmail();
+    if (userEmail != null && userEmail.isNotEmpty) {
+      data['lister_email'] = userEmail;
+    } else {
+      data['lister_email'] = 'demo@mipripity.com';
     }
+    
+    // Images are already handled in submitForm method
+    if (!data.containsKey('images')) {
+      data['images'] = uploadedImageUrls;
+    }
+    
+    return true;
   }
 
-  // Validate form data before submission
+  // Validate form data
   bool _validateFormData(Map<String, dynamic> data) {
     final List<String> errors = [];
 
@@ -290,17 +560,6 @@ class AddViewModel extends ChangeNotifier {
       errors.add('Location is required');
     }
 
-    // Make WhatsApp optional but warn if missing
-    if (data['whatsappNumber'] == null || data['whatsappNumber'].toString().trim().isEmpty) {
-      print('Warning: WhatsApp number is missing, will use default');
-    }
-
-    // Make images optional but warn if missing
-    final images = data['images'] as List<String>?;
-    if (images == null || images.isEmpty) {
-      print('Warning: No images provided for the listing');
-    }
-
     // Validate price format
     if (data['price'] != null) {
       final price = double.tryParse(data['price'].toString());
@@ -318,7 +577,7 @@ class AddViewModel extends ChangeNotifier {
     }
 
     // Validate WhatsApp number format
-    if (data['whatsappNumber'] != null) {
+    if (data['whatsappNumber'] != null && data['whatsappNumber'].toString().isNotEmpty) {
       final whatsappNumber = data['whatsappNumber'].toString().replaceAll(RegExp(r'[^0-9]'), '');
       if (whatsappNumber.length < 10) {
         errors.add('Please enter a valid WhatsApp number');
@@ -338,7 +597,6 @@ class AddViewModel extends ChangeNotifier {
     }
 
     if (data['type'] == 'residential') {
-      // Validate bedroom/bathroom counts
       final bedrooms = int.tryParse(data['bedrooms']?.toString() ?? '0');
       final bathrooms = int.tryParse(data['bathrooms']?.toString() ?? '0');
       
@@ -366,7 +624,6 @@ class AddViewModel extends ChangeNotifier {
       }
     }
 
-    // If there are validation errors, set error message
     if (errors.isNotEmpty) {
       errorMessage = 'Please fix the following errors:\n• ${errors.join('\n• ')}';
       notifyListeners();
@@ -376,9 +633,7 @@ class AddViewModel extends ChangeNotifier {
     return true;
   }
 
-  // Show success message (you can customize this)
   void _showSuccessMessage() {
-    // This could trigger a snackbar or other UI feedback
     print('Form submitted successfully!');
   }
 
@@ -403,26 +658,25 @@ class AddViewModel extends ChangeNotifier {
     return landProperties.contains(category);
   }
 
-  // Method to retry submission
   void retrySubmission(Map<String, dynamic> data) {
     errorMessage = null;
     notifyListeners();
     submitForm(data);
   }
 
-  // Method to clear error
   void clearError() {
     errorMessage = null;
     notifyListeners();
   }
 
-  // Method to reset form state
   void resetForm() {
     selectedCategory = null;
     showForm = false;
     formSubmitted = false;
     errorMessage = null;
     isSubmitting = false;
+    selectedImages.clear();
+    uploadedImageUrls.clear();
     notifyListeners();
   }
 }

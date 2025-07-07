@@ -1,27 +1,34 @@
 import 'package:flutter/material.dart';
-import 'dart:async';
+import 'package:cached_network_image/cached_network_image.dart';
+import 'package:flutter/services.dart';
 import 'api/bids_api.dart';
 import 'utils/currency_formatter.dart';
 import 'shared/bottom_navigation.dart';
+import 'property_bid_details_screen.dart';
 
 // Format date to relative time
 String getTimeAgo(String dateString) {
-  final date = DateTime.parse(dateString);
-  final now = DateTime.now();
-  final difference = now.difference(date);
+  try {
+    final date = DateTime.parse(dateString);
+    final now = DateTime.now();
+    final difference = now.difference(date);
 
-  if (difference.inDays > 365) {
-    return '${(difference.inDays / 365).floor()} year(s) ago';
-  } else if (difference.inDays > 30) {
-    return '${(difference.inDays / 30).floor()} month(s) ago';
-  } else if (difference.inDays > 0) {
-    return '${difference.inDays} day(s) ago';
-  } else if (difference.inHours > 0) {
-    return '${difference.inHours} hour(s) ago';
-  } else if (difference.inMinutes > 0) {
-    return '${difference.inMinutes} minute(s) ago';
-  } else {
-    return 'Just now';
+    if (difference.inDays > 365) {
+      return '${(difference.inDays / 365).floor()} year(s) ago';
+    } else if (difference.inDays > 30) {
+      return '${(difference.inDays / 30).floor()} month(s) ago';
+    } else if (difference.inDays > 0) {
+      return '${difference.inDays} day(s) ago';
+    } else if (difference.inHours > 0) {
+      return '${difference.inHours} hour(s) ago';
+    } else if (difference.inMinutes > 0) {
+      return '${difference.inMinutes} minute(s) ago';
+    } else {
+      return 'Just now';
+    }
+  } catch (e) {
+    print('Error parsing date: $e');
+    return 'Recently';
   }
 }
 
@@ -40,8 +47,63 @@ class BidCard extends StatelessWidget {
     required this.onView,
   }) : super(key: key);
 
+  // Get default image based on property category
+  String _getDefaultImageForCategory(String category) {
+    switch (category.toLowerCase()) {
+      case 'residential':
+        return 'assets/images/residential1.jpg';
+      case 'commercial':
+        return 'assets/images/commercial1.jpg';
+      case 'land':
+        return 'assets/images/land1.png';
+      case 'material':
+        return 'assets/images/material1.jpg';
+      default:
+        return 'assets/images/residential1.jpg';
+    }
+  }
+
+  // Get color based on bid status
+  Color _getStatusColor(String status) {
+    switch (status) {
+      case 'pending':
+        return const Color(0xFFF39322);
+      case 'accepted':
+        return Colors.green;
+      case 'rejected':
+        return Colors.red;
+      case 'expired':
+        return Colors.grey;
+      case 'withdrawn':
+        return Colors.blueGrey;
+      default:
+        return Colors.grey;
+    }
+  }
+
+  // Get display text based on bid status
+  String _getStatusText(String status) {
+    switch (status) {
+      case 'pending':
+        return 'Pending';
+      case 'accepted':
+        return 'Accepted';
+      case 'rejected':
+        return 'Rejected';
+      case 'expired':
+        return 'Expired';
+      case 'withdrawn':
+        return 'Withdrawn';
+      default:
+        return status.substring(0, 1).toUpperCase() + status.substring(1);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
+    // Determine if the image is a network URL or local asset
+    bool isNetworkImage = bid.listingImage.startsWith('http');
+
     return Container(
       margin: const EdgeInsets.only(bottom: 16),
       decoration: BoxDecoration(
@@ -67,26 +129,53 @@ class BidCard extends StatelessWidget {
                   topLeft: Radius.circular(12),
                   topRight: Radius.circular(12),
                 ),
-                child: Image.asset(
-                  bid.listingImage,
-                  height: 120,
-                  width: double.infinity,
-                  fit: BoxFit.cover,
-                  errorBuilder: (context, error, stackTrace) {
-                    return Container(
-                      height: 120,
-                      width: double.infinity,
-                      color: Colors.grey[200],
-                      child: const Center(
-                        child: Icon(
-                          Icons.image_not_supported,
-                          color: Colors.grey,
-                          size: 48,
+                child: isNetworkImage
+                    ? CachedNetworkImage(
+                        imageUrl: bid.listingImage,
+                        height: 120,
+                        width: double.infinity,
+                        fit: BoxFit.cover,
+                        placeholder: (context, url) => Container(
+                          height: 120,
+                          width: double.infinity,
+                          color: Colors.grey[200],
+                          child: const Center(
+                            child: CircularProgressIndicator(
+                              valueColor: AlwaysStoppedAnimation<Color>(Color(0xFFF39322)),
+                              strokeWidth: 2,
+                            ),
+                          ),
                         ),
+                        errorWidget: (context, url, error) {
+                          print('Error loading image: $error for URL: $url');
+                          return Image.asset(
+                            _getDefaultImageForCategory(bid.listingCategory),
+                            height: 120,
+                            width: double.infinity,
+                            fit: BoxFit.cover,
+                          );
+                        },
+                      )
+                    : Image.asset(
+                        bid.listingImage,
+                        height: 120,
+                        width: double.infinity,
+                        fit: BoxFit.cover,
+                        errorBuilder: (context, error, stackTrace) {
+                          return Container(
+                            height: 120,
+                            width: double.infinity,
+                            color: Colors.grey[200],
+                            child: const Center(
+                              child: Icon(
+                                Icons.image_not_supported,
+                                color: Colors.grey,
+                                size: 48,
+                              ),
+                            ),
+                          );
+                        },
                       ),
-                    );
-                  },
-                ),
               ),
               
               // Status Badge
@@ -406,40 +495,6 @@ class BidCard extends StatelessWidget {
         ],
       ),
     );
-  }
-
-  Color _getStatusColor(String status) {
-    switch (status) {
-      case 'pending':
-        return const Color(0xFFF39322);
-      case 'accepted':
-        return Colors.green;
-      case 'rejected':
-        return Colors.red;
-      case 'expired':
-        return Colors.grey;
-      case 'withdrawn':
-        return Colors.blueGrey;
-      default:
-        return Colors.grey;
-    }
-  }
-
-  String _getStatusText(String status) {
-    switch (status) {
-      case 'pending':
-        return 'Pending';
-      case 'accepted':
-        return 'Accepted';
-      case 'rejected':
-        return 'Rejected';
-      case 'expired':
-        return 'Expired';
-      case 'withdrawn':
-        return 'Withdrawn';
-      default:
-        return status.substring(0, 1).toUpperCase() + status.substring(1);
-    }
   }
 }
 
@@ -865,7 +920,7 @@ class _MyBidsScreenState extends State<MyBidsScreen> with SingleTickerProviderSt
       _error = null;
     });
 
-    // Get bids from API
+    // Get bids from API with forceRefresh to ensure latest data
     BidsApi.getUserBids(forceRefresh: true).then((bids) {
       if (mounted) {
         setState(() {
@@ -995,8 +1050,21 @@ class _MyBidsScreenState extends State<MyBidsScreen> with SingleTickerProviderSt
   }
 
   void _handleViewProperty(Bid bid) {
-    // Navigate to property details
-    Navigator.pushNamed(context, '/property-details/${bid.listingId}');
+    // Add haptic feedback for better user experience
+    HapticFeedback.lightImpact();
+    
+    // Navigate to our bid-specific property details screen
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => PropertyBidDetailsScreen(bid: bid),
+      ),
+    ).then((refreshNeeded) {
+      // If the PropertyBidDetailsScreen indicates a refresh is needed (after edit/cancel)
+      if (refreshNeeded == true) {
+        _fetchBids();
+      }
+    });
   }
 
   void _updateBid(double newAmount) {

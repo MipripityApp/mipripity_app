@@ -6,6 +6,9 @@ import 'dart:io';
 import 'add_view_model.dart';
 import 'shared/bottom_navigation.dart';
 import 'package:cloudinary_public/cloudinary_public.dart';
+import 'providers/user_provider.dart';
+import 'poll_property_form_screen.dart';
+import 'poll_property_form_screen.dart';
 
 class AddScreen extends StatefulWidget {
   final Function onNavigateBack;
@@ -220,20 +223,33 @@ class _AddScreenState extends State<AddScreen> {
                       ),
                       const SizedBox(width: 12),
                       // Profile Image
-                      Container(
-                        width: 40,
-                        height: 40,
-                        decoration: BoxDecoration(
-                          shape: BoxShape.circle,
-                          border: Border.all(
-                            color: Colors.white,
-                            width: 2,
-                          ),
-                          image: const DecorationImage(
-                            image: AssetImage('assets/images/chatbot.png'),
-                            fit: BoxFit.cover,
-                          ),
-                        ),
+                      Consumer<UserProvider>(
+                        builder: (context, userProvider, _) {
+                          final currentUser = userProvider.getCurrentUser();
+                          final avatarUrl = currentUser?.avatarUrl;
+                          
+                          return Container(
+                            width: 40,
+                            height: 40,
+                            decoration: BoxDecoration(
+                              shape: BoxShape.circle,
+                              border: Border.all(
+                                color: Colors.white,
+                                width: 2,
+                              ),
+                              image: DecorationImage(
+                                image: avatarUrl != null && avatarUrl.isNotEmpty
+                                    ? NetworkImage(avatarUrl) as ImageProvider
+                                    : const AssetImage('assets/images/mipripity.png'),
+                                fit: BoxFit.cover,
+                                onError: (exception, stackTrace) {
+                                  // Handle image loading error
+                                  print('Error loading profile image: $exception');
+                                },
+                              ),
+                            ),
+                          );
+                        },
                       ),
                     ],
                   ),
@@ -313,6 +329,53 @@ class _AddScreenState extends State<AddScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
+            // Poll Property Banner - Add full-width banner above the grid
+            GestureDetector(
+              onTap: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => PollPropertyFormScreen(), // Navigate to poll property form screen
+                  ),
+                );
+              },
+              child: Container(
+                margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(12),
+                  color: Colors.white,
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black12,
+                      blurRadius: 5,
+                      offset: Offset(0, 2),
+                    ),
+                  ],
+                ),
+                child: Row(
+                  children: [
+                    Image.asset(
+                      'assets/icons/polls.gif',
+                      height: 50,
+                      width: 50,
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Text(
+                        'List your properties for POLL',
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w600,
+                          color: Color(0xFF000080),
+                        ),
+                      ),
+                    ),
+                    const Icon(Icons.arrow_forward_ios, size: 16, color: Colors.deepPurple),
+                  ],
+                ),
+              ),
+            ),
             GridView.builder(
               shrinkWrap: true,
               physics: const NeverScrollableScrollPhysics(),

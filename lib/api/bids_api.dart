@@ -50,7 +50,7 @@ class Bid {
     try {
       // Set default values for image path based on category
       String defaultImagePath = 'assets/images/residential1.jpg';
-      final category = json['listing_category']?.toString()?.toLowerCase() ?? 'residential';
+      final category = json['listing_category']?.toString().toLowerCase() ?? 'residential';
       
       if (category == 'commercial') {
         defaultImagePath = 'assets/images/commercial1.jpg';
@@ -61,12 +61,12 @@ class Bid {
       }
 
       return Bid(
-        id: json['id']?.toString() ?? json['bid_id']?.toString() ?? '0',
-        listingId: json['listing_id']?.toString() ?? json['property_id']?.toString() ?? '0',
-        listingTitle: json['listing_title']?.toString() ?? json['property_title']?.toString() ?? 'Unknown Property',
-        listingImage: json['listing_image']?.toString() ?? json['property_image']?.toString() ?? defaultImagePath,
-        listingCategory: json['listing_category']?.toString() ?? json['property_category']?.toString() ?? 'residential',
-        listingLocation: json['listing_location']?.toString() ?? json['property_location']?.toString() ?? 'Unknown Location',
+        id: json['id']?.toString() ?? '',
+        listingId: json['listing_id']?.toString() ?? '',
+        listingTitle: json['listing_title']?.toString() ?? 'Unknown Property',
+        listingImage: json['listing_image']?.toString() ?? defaultImagePath,
+        listingCategory: json['listing_category']?.toString() ?? 'residential',
+        listingLocation: json['listing_location']?.toString() ?? 'Unknown Location',
         listingPrice: json['listing_price'] is num 
             ? (json['listing_price'] as num).toDouble() 
             : double.tryParse(json['listing_price']?.toString() ?? '0') ?? 0.0,
@@ -80,11 +80,12 @@ class Bid {
         userId: json['user_id']?.toString(),
       );
     } catch (e) {
-      print('Error parsing Bid: $e');
+      print('Error parsing Bid from JSON: $e');
+      print('Problematic JSON: $json');
       // Return a default bid on error to avoid app crashes
       return Bid(
-        id: json['id']?.toString() ?? '0',
-        listingId: json['listing_id']?.toString() ?? '0',
+        id: json['id']?.toString() ?? '',
+        listingId: json['listing_id']?.toString() ?? '',
         listingTitle: 'Error parsing bid data',
         listingImage: 'assets/images/residential1.jpg',
         listingCategory: 'residential',
@@ -143,12 +144,16 @@ class BidsApi {
     };
   }
 
-  // Check network connectivity
+  // Check network connectivity using a lightweight HTTP request instead of InternetAddress
   static Future<bool> _hasNetworkConnection() async {
     try {
-      final result = await InternetAddress.lookup('google.com')
-          .timeout(const Duration(seconds: 5));
-      return result.isNotEmpty && result[0].rawAddress.isNotEmpty;
+      // Make a lightweight request to a reliable endpoint
+      final response = await _httpClient.head(
+        Uri.parse('https://www.google.com'),
+        headers: _getHeaders(),
+      ).timeout(const Duration(seconds: 5));
+      
+      return response.statusCode >= 200 && response.statusCode < 500;
     } on SocketException catch (_) {
       print('Network connectivity check failed: No internet connection');
       return false;
@@ -218,15 +223,19 @@ class BidsApi {
     try {
       print('Attempting to wake up Render.com service...');
       
+      // Use the root endpoint instead of /health since it returned a 404
       final response = await _httpClient.get(
-        Uri.parse('$_apiBaseUrl/health'),
+        Uri.parse(_apiBaseUrl),
         headers: _getHeaders(),
       ).timeout(
         const Duration(seconds: 90), // Longer timeout for cold starts
       );
       
       print('Wake up response status: ${response.statusCode}');
-      return response.statusCode >= 200 && response.statusCode < 500;
+      
+      // Consider 404 as an acceptable response since the main goal is to wake up the service
+      // A 404 means the server is running, just not at that endpoint
+      return response.statusCode >= 200 && response.statusCode < 500 || response.statusCode == 404;
     } catch (e) {
       print('Service wake up failed: $e');
       // Return true to let the main request attempt continue
@@ -243,7 +252,7 @@ class BidsApi {
       if (queryParams != null && queryParams.isNotEmpty) {
         url += '?';
         queryParams.forEach((key, value) {
-          url += '$key=$value&';
+          url += '$key=${Uri.encodeComponent(value)}&';
         });
         url = url.substring(0, url.length - 1); // Remove the trailing &
       }
@@ -267,14 +276,16 @@ class BidsApi {
         print('Response received, length: ${responseBody.length} bytes');
         
         if (responseBody.isEmpty) {
-          throw Exception('Empty response body received');
+          print('Empty response body - returning empty list');
+          return [];
         }
         
         final dynamic decodedData = jsonDecode(responseBody);
         
-        // Handle both array and object responses
+        // Handle the server response format
         List<dynamic> data;
         if (decodedData is List) {
+          // Direct array response from server
           data = decodedData;
         } else if (decodedData is Map<String, dynamic>) {
           // If the response is wrapped in an object, look for common keys
@@ -289,26 +300,35 @@ class BidsApi {
             data = [decodedData];
           }
         } else {
+          print('Unexpected response format: ${decodedData.runtimeType}');
           throw Exception('Unexpected response format: ${decodedData.runtimeType}');
         }
         
-        print('Successfully decoded JSON with ${data.length} bids');
+        print('Successfully decoded JSON with ${data.length} items');
         
         if (data.isEmpty) {
           print('No bids found in response');
           return [];
         }
         
-        final bids = data.map((json) {
+        // Parse each bid item
+        final bids = <Bid>[];
+        for (int i = 0; i < data.length; i++) {
           try {
-            return Bid.fromJson(json as Map<String, dynamic>);
+            final bidData = data[i];
+            if (bidData is Map<String, dynamic>) {
+              final bid = Bid.fromJson(bidData);
+              bids.add(bid);
+            } else {
+              print('Skipping invalid bid data at index $i: ${bidData.runtimeType}');
+            }
           } catch (e) {
-            print('Error parsing individual bid: $e');
-            return null;
+            print('Error parsing bid at index $i: $e');
+            // Continue with other bids instead of failing completely
           }
-        }).where((bid) => bid != null).cast<Bid>().toList();
+        }
         
-        print('Successfully parsed ${bids.length} bids');
+        print('Successfully parsed ${bids.length} bids out of ${data.length} items');
         return bids;
       } else {
         final errorBody = response.body;
@@ -325,6 +345,13 @@ class BidsApi {
   static Future<List<Bid>> getUserBids({bool forceRefresh = false}) async {
     print('Getting user bids (forceRefresh: $forceRefresh)');
     
+    // Check network connectivity first
+    final hasConnection = await _hasNetworkConnection();
+    if (!hasConnection) {
+      print('No network connection available');
+      throw Exception('No internet connection. Please check your network and try again.');
+    }
+    
     // Check if we should try to use cache first
     if (!forceRefresh) {
       final cachedBids = await _loadFromCache();
@@ -332,31 +359,6 @@ class BidsApi {
         print('Using cached bids (${cachedBids.length} items)');
         return cachedBids;
       }
-    }
-    
-    // Check network connectivity
-    final hasConnection = await _hasNetworkConnection();
-    if (!hasConnection) {
-      print('No network connection available, trying to load from cache');
-      final cachedBids = await _loadFromCache();
-      if (cachedBids != null && cachedBids.isNotEmpty) {
-        print('Using cached bids due to no network');
-        return cachedBids;
-      }
-      
-      // Try to get bids from local database
-      try {
-        final dbBids = await _dbHelper.getBids();
-        if (dbBids.isNotEmpty) {
-          print('Using database bids due to no network');
-          return dbBids.map((bidMap) => Bid.fromJson(bidMap)).toList();
-        }
-      } catch (e) {
-        print('Error fetching bids from database: $e');
-      }
-      
-      // Return mock data as last resort for no network
-      return _getMockBids();
     }
     
     // Try to wake up the service first (for Render.com cold starts)
@@ -382,13 +384,20 @@ class BidsApi {
           queryParams: {'user_id': userId}
         );
         
-        // Save to cache for offline use
+        // Save to cache for offline use (always prioritize this as it's more reliable)
         if (bids.isNotEmpty) {
           await _saveToCache(bids);
           
-          // Also save to local database
-          for (final bid in bids) {
-            await _dbHelper.saveBid(bid.toJson());
+          // Try to save to local database, but don't fail if database is not initialized
+          try {
+            for (final bid in bids) {
+              await _dbHelper.saveBid(bid.toJson());
+            }
+            print('Successfully saved bids to local database');
+          } catch (dbError) {
+            // Log but don't fail - the data is already in cache
+            print('Note: Could not save to local database: $dbError');
+            print('This is normal on some platforms. Using SharedPreferences cache instead.');
           }
           
           print('Successfully fetched and cached ${bids.length} bids');
@@ -415,7 +424,8 @@ class BidsApi {
       return cachedBids;
     }
     
-    // Try to get bids from local database
+    // Try to get bids from local database as a last resort
+    bool dbInitialized = true;
     try {
       final dbBids = await _dbHelper.getBids();
       if (dbBids.isNotEmpty) {
@@ -423,11 +433,113 @@ class BidsApi {
         return dbBids.map((bidMap) => Bid.fromJson(bidMap)).toList();
       }
     } catch (e) {
-      print('Error fetching bids from database: $e');
+      dbInitialized = false;
+      // Don't retry database operations if we get initialization errors
+      if (e.toString().contains('databaseFactory not initialized')) {
+        print('Database is not available on this platform. Using cache only.');
+      } else {
+        print('Error fetching bids from database: $e');
+      }
     }
     
-    // No cached data available, use mock data as final fallback
-    return _getMockBids();
+    // No data available anywhere - throw the last exception
+    throw lastException ?? Exception('Failed to fetch bids from server. Please try again later.');
+  }
+
+  // Get all bids (for admin/public view)
+  static Future<List<Bid>> getAllBids({bool forceRefresh = false}) async {
+    print('Getting all bids (forceRefresh: $forceRefresh)');
+    
+    // Check network connectivity first
+    final hasConnection = await _hasNetworkConnection();
+    if (!hasConnection) {
+      print('No network connection available');
+      throw Exception('No internet connection. Please check your network and try again.');
+    }
+    
+    // Try to wake up the service first (for Render.com cold starts)
+    await _wakeUpService();
+    
+    // Implement retry logic with exponential backoff
+    Exception? lastException;
+    
+    for (int attempt = 0; attempt < _MAX_RETRIES; attempt++) {
+      try {
+        if (attempt > 0) {
+          print('Retry attempt $attempt/$_MAX_RETRIES for all bids');
+          // Exponential backoff: 2s, 4s, 8s
+          final delaySeconds = math.pow(2, attempt).toInt();
+          await Future.delayed(Duration(seconds: delaySeconds));
+        }
+        
+        // Fetch all bids from API
+        final bids = await _makeApiRequest('bids');
+        
+        print('Successfully fetched ${bids.length} bids');
+        return bids;
+      } catch (e) {
+        print('Error on attempt ${attempt + 1}/$_MAX_RETRIES: $e');
+        lastException = e is Exception ? e : Exception('Network error: $e');
+        
+        // Don't retry on certain errors
+        if (e is FormatException) {
+          print('Format error, stopping retries');
+          break;
+        }
+      }
+    }
+    
+    // All retries failed - throw the last exception
+    throw lastException ?? Exception('Failed to fetch bids from server. Please try again later.');
+  }
+
+  // Get bids for a specific listing
+  static Future<List<Bid>> getBidsForListing(String listingId) async {
+    print('Getting bids for listing $listingId');
+    
+    // Check network connectivity first
+    final hasConnection = await _hasNetworkConnection();
+    if (!hasConnection) {
+      print('No network connection available');
+      throw Exception('No internet connection. Please check your network and try again.');
+    }
+    
+    // Try to wake up the service first (for Render.com cold starts)
+    await _wakeUpService();
+    
+    // Implement retry logic with exponential backoff
+    Exception? lastException;
+    
+    for (int attempt = 0; attempt < _MAX_RETRIES; attempt++) {
+      try {
+        if (attempt > 0) {
+          print('Retry attempt $attempt/$_MAX_RETRIES for listing bids');
+          // Exponential backoff: 2s, 4s, 8s
+          final delaySeconds = math.pow(2, attempt).toInt();
+          await Future.delayed(Duration(seconds: delaySeconds));
+        }
+        
+        // Fetch bids for specific listing from API
+        final bids = await _makeApiRequest('bids', 
+          queryParams: {'listing_id': listingId}
+        );
+        
+        print('Successfully fetched ${bids.length} bids for listing $listingId');
+        return bids;
+      } catch (e) {
+        print('Error on attempt ${attempt + 1}/$_MAX_RETRIES: $e');
+        lastException = e is Exception ? e : Exception('Network error: $e');
+        
+        // Don't retry on certain errors
+        if (e is FormatException) {
+          print('Format error, stopping retries');
+          break;
+        }
+      }
+    }
+    
+    // All retries failed - throw the last exception
+    throw lastException ?? Exception('Failed to fetch bids for listing. Please try again later.');
   }
 
   // Create a new bid
@@ -445,7 +557,7 @@ class BidsApi {
     // Check network connectivity first
     if (!await _hasNetworkConnection()) {
       print('No network connection for creating bid');
-      return false;
+      throw Exception('No internet connection. Please check your network and try again.');
     }
     
     try {
@@ -484,12 +596,19 @@ class BidsApi {
         final responseData = jsonDecode(response.body);
         final bidId = responseData['id']?.toString() ?? '';
         
-        // Save the bid to the local database
+        // Try to save the bid to the local database
         final bidMap = {
           ...requestBody,
           'id': bidId,
         };
-        await _dbHelper.saveBid(bidMap);
+        
+        try {
+          await _dbHelper.saveBid(bidMap);
+          print('Successfully saved new bid to local database');
+        } catch (dbError) {
+          // Log but don't fail - the operation succeeded on the server
+          print('Note: Could not save bid to local database: $dbError');
+        }
         
         // Clear the cache to force a refresh
         final prefs = await SharedPreferences.getInstance();
@@ -498,11 +617,14 @@ class BidsApi {
         return true;
       } else {
         print('Failed to create bid: ${response.statusCode} - ${response.body}');
-        return false;
+        throw Exception('Failed to create bid. Server returned: ${response.statusCode}');
       }
     } catch (e) {
       print('Error creating bid: $e');
-      return false;
+      if (e is Exception) {
+        rethrow;
+      }
+      throw Exception('Failed to create bid: $e');
     }
   }
 
@@ -516,7 +638,7 @@ class BidsApi {
     // Check network connectivity first
     if (!await _hasNetworkConnection()) {
       print('No network connection for updating bid');
-      return false;
+      throw Exception('No internet connection. Please check your network and try again.');
     }
     
     try {
@@ -540,8 +662,14 @@ class BidsApi {
       print('Update bid response status: ${response.statusCode}');
       
       if (response.statusCode == 200) {
-        // Update the bid in the local database
-        await _dbHelper.updateBidAmount(bidId, bidAmount);
+        // Try to update the bid in the local database
+        try {
+          await _dbHelper.updateBidAmount(bidId, bidAmount);
+          print('Successfully updated bid in local database');
+        } catch (dbError) {
+          // Log but don't fail - the operation succeeded on the server
+          print('Note: Could not update bid in local database: $dbError');
+        }
         
         // Clear the cache to force a refresh
         final prefs = await SharedPreferences.getInstance();
@@ -550,11 +678,14 @@ class BidsApi {
         return true;
       } else {
         print('Failed to update bid: ${response.statusCode} - ${response.body}');
-        return false;
+        throw Exception('Failed to update bid. Server returned: ${response.statusCode}');
       }
     } catch (e) {
       print('Error updating bid: $e');
-      return false;
+      if (e is Exception) {
+        rethrow;
+      }
+      throw Exception('Failed to update bid: $e');
     }
   }
 
@@ -565,7 +696,7 @@ class BidsApi {
     // Check network connectivity first
     if (!await _hasNetworkConnection()) {
       print('No network connection for cancelling bid');
-      return false;
+      throw Exception('No internet connection. Please check your network and try again.');
     }
     
     try {
@@ -589,8 +720,14 @@ class BidsApi {
       print('Cancel bid response status: ${response.statusCode}');
       
       if (response.statusCode == 200) {
-        // Update the bid status in the local database
-        await _dbHelper.updateBidStatus(bidId, 'withdrawn');
+        // Try to update the bid status in the local database
+        try {
+          await _dbHelper.updateBidStatus(bidId, 'withdrawn');
+          print('Successfully updated bid status in local database');
+        } catch (dbError) {
+          // Log but don't fail - the operation succeeded on the server
+          print('Note: Could not update bid status in local database: $dbError');
+        }
         
         // Clear the cache to force a refresh
         final prefs = await SharedPreferences.getInstance();
@@ -599,79 +736,78 @@ class BidsApi {
         return true;
       } else {
         print('Failed to cancel bid: ${response.statusCode} - ${response.body}');
-        return false;
+        throw Exception('Failed to cancel bid. Server returned: ${response.statusCode}');
       }
     } catch (e) {
       print('Error cancelling bid: $e');
-      return false;
+      if (e is Exception) {
+        rethrow;
+      }
+      throw Exception('Failed to cancel bid: $e');
     }
   }
 
-  // Get or generate a user ID for creating bids
+  // Get authenticated user ID or generate a temporary one if not available
   static Future<String> _getUserId() async {
     try {
       final prefs = await SharedPreferences.getInstance();
-      String? userId = prefs.getString('user_id');
       
-      // If no user ID exists, generate one and save it
-      if (userId == null || userId.isEmpty) {
-        userId = 'user_${DateTime.now().millisecondsSinceEpoch}_${math.Random().nextInt(10000)}';
-        await prefs.setString('user_id', userId);
-        print('Generated new user ID: $userId');
+      // First try to get the user data saved by UserProvider
+      final userData = prefs.getString('user_data');
+      if (userData != null && userData.isNotEmpty) {
+        try {
+          // Parse the user data JSON
+          final Map<String, dynamic> userMap = jsonDecode(userData);
+          
+          // Extract the user ID and convert it to string
+          if (userMap.containsKey('id')) {
+            final userId = userMap['id'];
+            // Convert to string regardless of original type (int or String)
+            return userId.toString();
+          }
+        } catch (e) {
+          print('Error parsing user data: $e');
+          // Continue to fallback methods
+        }
       }
       
+      // Fallback 1: Check if we have a currentUserId saved by UserService
+      final currentUserId = prefs.getInt('currentUserId');
+      if (currentUserId != null) {
+        return currentUserId.toString();
+      }
+      
+      // Fallback 2: Check if we have a standalone user_id saved
+      String? userId = prefs.getString('user_id');
+      if (userId != null && userId.isNotEmpty) {
+        return userId;
+      }
+      
+      // Last resort: Generate a temporary ID
+      final timestamp = DateTime.now().millisecondsSinceEpoch.toString();
+      final randomPart = math.Random().nextInt(10000).toString();
+      userId = 'temp_${timestamp}_$randomPart';
+      
+      // No need to save temporary IDs
+      print('Using temporary user ID: $userId');
       return userId;
     } catch (e) {
       print('Error getting/generating user ID: $e');
-      // Return a temporary ID if SharedPreferences fails
-      return 'temp_${DateTime.now().millisecondsSinceEpoch}_${math.Random().nextInt(10000)}';
+      // Return a temporary ID if all methods fail
+      final timestamp = DateTime.now().millisecondsSinceEpoch.toString();
+      final randomPart = math.Random().nextInt(10000).toString();
+      return 'temp_${timestamp}_$randomPart';
     }
   }
 
-  // Generate mock bids for offline mode or initial app launch
-  static List<Bid> _getMockBids() {
-    print('Generating mock bids data');
-    return [
-      Bid(
-        id: 'mock-1',
-        listingId: 'listing-1',
-        listingTitle: 'Beautiful 3 Bedroom Apartment',
-        listingImage: 'assets/images/residential1.jpg',
-        listingCategory: 'residential',
-        listingLocation: 'Victoria Island, Lagos',
-        listingPrice: 350000,
-        bidAmount: 320000,
-        status: 'pending',
-        createdAt: DateTime.now().subtract(const Duration(hours: 5)).toIso8601String(),
-      ),
-      Bid(
-        id: 'mock-2',
-        listingId: 'listing-2',
-        listingTitle: 'Commercial Office Space',
-        listingImage: 'assets/images/commercial1.jpg',
-        listingCategory: 'commercial',
-        listingLocation: 'Ikeja, Lagos',
-        listingPrice: 500000,
-        bidAmount: 500000,
-        status: 'accepted',
-        createdAt: DateTime.now().subtract(const Duration(days: 2)).toIso8601String(),
-        responseMessage: 'Thank you for your bid. We are pleased to accept your offer.',
-        responseDate: DateTime.now().subtract(const Duration(days: 1)).toIso8601String(),
-      ),
-      Bid(
-        id: 'mock-3',
-        listingId: 'listing-3',
-        listingTitle: 'Land Property with C of O',
-        listingImage: 'assets/images/land1.jpeg',
-        listingCategory: 'land',
-        listingLocation: 'Lekki, Lagos',
-        listingPrice: 250000,
-        bidAmount: 200000,
-        status: 'rejected',
-        createdAt: DateTime.now().subtract(const Duration(days: 5)).toIso8601String(),
-        responseMessage: 'Thank you for your interest. Unfortunately, your bid was too low for consideration.',
-        responseDate: DateTime.now().subtract(const Duration(days: 3)).toIso8601String(),
-      ),
-    ];
+  // Clear all cached data
+  static Future<void> clearCache() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.remove(_BIDS_CACHE_KEY);
+      print('Cache cleared successfully');
+    } catch (e) {
+      print('Error clearing cache: $e');
+    }
   }
 }
