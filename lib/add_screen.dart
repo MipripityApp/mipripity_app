@@ -8,7 +8,6 @@ import 'shared/bottom_navigation.dart';
 import 'package:cloudinary_public/cloudinary_public.dart';
 import 'providers/user_provider.dart';
 import 'poll_property_form_screen.dart';
-import 'poll_property_form_screen.dart';
 
 class AddScreen extends StatefulWidget {
   final Function onNavigateBack;
@@ -335,7 +334,7 @@ class _AddScreenState extends State<AddScreen> {
                 Navigator.push(
                   context,
                   MaterialPageRoute(
-                    builder: (context) => PollPropertyFormScreen(), // Navigate to poll property form screen
+                    builder: (context) => const PollPropertyFormScreen(), // Navigate to poll property form screen
                   ),
                 );
               },
@@ -345,7 +344,7 @@ class _AddScreenState extends State<AddScreen> {
                 decoration: BoxDecoration(
                   borderRadius: BorderRadius.circular(12),
                   color: Colors.white,
-                  boxShadow: [
+                  boxShadow: const [
                     BoxShadow(
                       color: Colors.black12,
                       blurRadius: 5,
@@ -361,11 +360,11 @@ class _AddScreenState extends State<AddScreen> {
                       width: 50,
                     ),
                     const SizedBox(width: 12),
-                    Expanded(
+                    const Expanded(
                       child: Text(
                         'List your properties for POLL',
                         style: TextStyle(
-                          fontSize: 16,
+                          fontSize: 10,
                           fontWeight: FontWeight.w600,
                           color: Color(0xFF000080),
                         ),

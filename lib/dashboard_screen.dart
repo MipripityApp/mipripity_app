@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'dart:async';
 import 'dart:convert';
+import 'dart:math' as math;
 import 'package:url_launcher/url_launcher.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:provider/provider.dart';
@@ -11,6 +12,7 @@ import 'filter_form.dart';
 import 'shared/bottom_navigation.dart';
 import 'utils/currency_formatter.dart';
 import 'providers/user_provider.dart';
+import 'utils/property_prospect_util.dart';
 
 // Data model for listings with database support
 class Listing {
@@ -272,10 +274,6 @@ class _CountdownTimerState extends State<CountdownTimer> {
   Widget _buildTimeBox(int value, String label) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
-      decoration: BoxDecoration(
-        color: const Color(0xFFF39322).withOpacity(0.1),
-        borderRadius: BorderRadius.circular(4),
-      ),
       child: Column(
         children: [
           Text(
@@ -283,14 +281,14 @@ class _CountdownTimerState extends State<CountdownTimer> {
             style: const TextStyle(
               fontSize: 8,
               fontWeight: FontWeight.bold,
-              color: Color(0xFFF39322),
+              color: Color.fromARGB(255, 255, 255, 255),
             ),
           ),
           Text(
             label,
             style: TextStyle(
               fontSize: 8,
-              color: Colors.grey[600],
+              color: Color(0xFFF39322).withOpacity(0.7),
             ),
           ),
         ],
@@ -979,9 +977,66 @@ class _LayeredListingCardState extends State<LayeredListingCard> {
                           },
                         ),
                 ),
+                // Lister's profile picture in top left corner
+                Positioned(
+                    top: 12,
+                    left: 12,
+                    child: Row(
+                      children: [
+                        // Lister DP
+                        Container(
+                          width: 36,
+                          height: 36,
+                          decoration: BoxDecoration(
+                            shape: BoxShape.circle,
+                            border: Border.all(
+                              color: Colors.white,
+                              width: 2,
+                            ),
+                            boxShadow: [
+                              BoxShadow(
+                                color: Colors.black.withOpacity(0.2),
+                                spreadRadius: 0,
+                                blurRadius: 5,
+                                offset: const Offset(0, 2),
+                              ),
+                            ],
+                          ),
+                          child: ClipOval(
+                            child: Image.network(
+                              _listerData != null
+                                  ? (_listerData!['lister_dp'] ?? widget.listing.listerDp)
+                                  : widget.listing.listerDp,
+                              width: 36,
+                              height: 36,
+                              fit: BoxFit.cover,
+                              errorBuilder: (context, error, stackTrace) {
+                                return const Icon(Icons.person, size: 20, color: Colors.grey);
+                              },
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+
+                        // Lister Name
+                        Text(
+                          _listerData != null
+                              ? '${_listerData!['first_name']}'
+                              : widget.listing.listerName,
+                          style: const TextStyle(
+                            fontSize: 10,
+                            fontWeight: FontWeight.w600,
+                            color: Color.fromARGB(255, 255, 255, 255),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+
+                // Category label at top right corner
                 Positioned(
                   top: 12,
-                  left: 12,
+                  right: 12,
                   child: Container(
                     padding: const EdgeInsets.symmetric(
                       horizontal: 12,
@@ -1001,90 +1056,7 @@ class _LayeredListingCardState extends State<LayeredListingCard> {
                     ),
                   ),
                 ),
-                Positioned(
-                  top: 12,
-                  right: 12,
-                  height: 20,
-                  child: TweenAnimationBuilder<double>(
-                    tween: Tween<double>(begin: 1.0, end: 1.05),
-                    duration: const Duration(milliseconds: 800),
-                    curve: Curves.easeInOut,
-                    builder: (context, value, child) {
-                      return Transform.scale(
-                        scale: value,
-                        child: child,
-                      );
-                    },
-                    child: Container(
-                      decoration: const BoxDecoration(
-                        gradient: LinearGradient(
-                          colors: [Color(0xFFF39322), Color(0xFF000080)],
-                          begin: Alignment.topLeft,
-                          end: Alignment.bottomRight,
-                        ),
-                        borderRadius: BorderRadius.all(Radius.circular(20)),
-                        boxShadow: [
-                          BoxShadow(
-                            color: Colors.black26,
-                            blurRadius: 6,
-                            offset: Offset(2, 4),
-                          ),
-                        ],
-                      ),
-                      child: ElevatedButton.icon(
-                        onPressed: () {
-                          // Navigate to map view with property coordinates
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (context) => MapView(
-                                propertyId: widget.listing.id,
-                                propertyTitle: widget.listing.title,
-                                propertyAddress: '${widget.listing.location}, ${widget.listing.city}, ${widget.listing.state}',
-                                latitude: double.tryParse(widget.listing.latitude) ?? 0.0,
-                                longitude: double.tryParse(widget.listing.longitude) ?? 0.0,
-                              ),
-                            ),
-                          );
-                        },
-                        icon: ClipOval(
-                          child: Image.asset(
-                            'assets/icons/tour-icon.gif',
-                            width: 20,
-                            height: 30,
-                            fit: BoxFit.cover,
-                            errorBuilder: (context, error, stackTrace) {
-                              return const Icon(
-                                Icons.view_in_ar,
-                                size: 16,
-                                color: Colors.white,
-                              );
-                            },
-                          ),
-                        ),
-                        label: const Text(
-                          'Take a Tour',
-                          style: TextStyle(
-                            fontSize: 10,
-                            fontWeight: FontWeight.w500,
-                            color: Colors.white,
-                          ),
-                        ),
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: Colors.transparent,
-                          shadowColor: Colors.transparent,
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 8,
-                            vertical: 4,
-                          ),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(20),
-                          ),
-                        ),
-                      ),
-                    ),
-                  ),
-                ),
+                // Bottom gradient with property details
                 Positioned(
                   bottom: 0,
                   left: 0,
@@ -1141,6 +1113,61 @@ class _LayeredListingCardState extends State<LayeredListingCard> {
                     ),
                   ),
                 ),
+                
+                // Layer K - Countdown Timer positioned at bottom right of image
+                Positioned(
+                  bottom: 10,
+                  right: 10,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: Colors.black.withOpacity(0.7),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        // Blinking red indicator
+                        TweenAnimationBuilder<double>(
+                          tween: Tween<double>(begin: 0.3, end: 1.0),
+                          duration: const Duration(milliseconds: 500),
+                          curve: Curves.easeInOut,
+                          builder: (context, value, child) {
+                            return Container(
+                              width: 8,
+                              height: 8,
+                              decoration: BoxDecoration(
+                                shape: BoxShape.circle,
+                                color: Colors.red.withOpacity(value),
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: Colors.red.withOpacity(value * 0.5),
+                                    blurRadius: 4,
+                                    spreadRadius: 1,
+                                  ),
+                                ],
+                              ),
+                            );
+                          },
+                          child: Container(),
+                        ),
+                        const SizedBox(width: 4),
+                        Text(
+                          'Closing in',
+                          style: TextStyle(
+                            fontSize: 8,
+                            fontWeight: FontWeight.w500,
+                            color: Colors.white,
+                          ),
+                        ),
+                        const SizedBox(width: 3),
+                        CountdownTimer(
+                          targetDate: widget.listing.urgencyPeriod,
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
               ],
             ),
 
@@ -1156,423 +1183,274 @@ class _LayeredListingCardState extends State<LayeredListingCard> {
             // Divider
             const Divider(height: 1),
 
-            // Layers J, K, L Container - Rearranged
+            // Layers J and L Container - Rearranged side by side
             Padding(
               padding: const EdgeInsets.all(12),
-              child: Column(
+              child: Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // Layer L - Deposit Options (Now on top)
-                  Container(
-                    width: double.infinity,
-                    padding: const EdgeInsets.all(12),
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.circular(12),
-                      border: Border.all(
-                        color: const Color(0xFFF39322).withOpacity(0.2),
+                  // Four vertical buttons replacing Layer J
+                  Expanded(
+                    flex: 3,
+                    child: Container(
+                      padding: const EdgeInsets.all(4),
+                      decoration: BoxDecoration(
+                        color: Color.fromARGB(255, 255, 255, 255),
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(
+                          color: const Color(0xFF000080).withOpacity(0.2),
+                        ),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.grey.withOpacity(0.1),
+                            spreadRadius: 0,
+                            blurRadius: 5,
+                            offset: const Offset(0, 2),
+                          ),
+                        ],
                       ),
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.grey.withOpacity(0.1),
-                          spreadRadius: 0,
-                          blurRadius: 5,
-                          offset: const Offset(0, 2),
-                        ),
-                      ],
-                    ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        const Text(
-                          'Deposit Options',
-                          style: TextStyle(
-                            fontSize: 10,
-                            fontWeight: FontWeight.bold,
-                            color: Color(0xFF000080),
+                      child: Column(
+                        children: [
+                          const SizedBox(height: 6),
+                          
+                          // WhatsApp Button
+                          _buildActionButton(
+                            'WhatsApp',
+                            'assets/images/Whatapp.gif',
+                            Icons.message,
+                            Colors.green,
+                            () => _handleWhatsappClick(context),
+                            backgroundColor: const Color(0xFF000080),
+                            textColor: Colors.white,
                           ),
-                        ),
-                        const SizedBox(height: 12),
-                        // 3x3 Grid for deposit options
-                        Column(
-                          children: [
-                            // Row 1: 10%, 20%, 30%
-                            Row(
-                              children: [
-                                Expanded(child: _buildDepositOptionButton(10)),
-                                const SizedBox(width: 8),
-                                Expanded(child: _buildDepositOptionButton(20)),
-                                const SizedBox(width: 8),
-                                Expanded(child: _buildDepositOptionButton(30)),
-                              ],
-                            ),
-                            const SizedBox(height: 8),
-                            // Row 2: 40%, 50%, 60%
-                            Row(
-                              children: [
-                                Expanded(child: _buildDepositOptionButton(40)),
-                                const SizedBox(width: 8),
-                                Expanded(child: _buildDepositOptionButton(50)),
-                                const SizedBox(width: 8),
-                                Expanded(child: _buildDepositOptionButton(60)),
-                              ],
-                            ),
-                            const SizedBox(height: 8),
-                            // Row 3: 70%, 80%, 90%
-                            Row(
-                              children: [
-                                Expanded(child: _buildDepositOptionButton(70)),
-                                const SizedBox(width: 8),
-                                Expanded(child: _buildDepositOptionButton(80)),
-                                const SizedBox(width: 8),
-                                Expanded(child: _buildDepositOptionButton(90)),
-                              ],
-                            ),
-                          ],
-                        ),
-                      ],
-                    ),
-                  ),
-                  
-                  // Horizontal Divider
-                  Container(
-                    margin: const EdgeInsets.symmetric(vertical: 16),
-                    height: 1,
-                    width: double.infinity,
-                    color: Colors.grey[300],
-                  ),
-                  
-                  // Layer J and K side by side
-                  Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      // Layer J - Lister Details with Action Icons
-                      Expanded(
-                        child: Container(
-                          padding: const EdgeInsets.all(8),
-                          decoration: BoxDecoration(
-                            color: Colors.white,
-                            borderRadius: BorderRadius.circular(12),
-                            border: Border.all(
-                              color: const Color(0xFFF39322).withOpacity(0.2),
-                            ),
-                            boxShadow: [
-                              BoxShadow(
-                                color: Colors.grey.withOpacity(0.1),
-                                spreadRadius: 0,
-                                blurRadius: 5,
-                                offset: const Offset(0, 2),
-                              ),
-                            ],
+                          
+                          const SizedBox(height: 6),
+                          
+                          // Inspect Now Button
+                          _buildActionButton(
+                            'Inspect Now',
+                            'assets/images/Inspect.gif',
+                            Icons.search,
+                            Colors.blue,
+                            _handleInspectClick,
+                            backgroundColor: const Color(0xFF000080),
+                            textColor: Colors.white,
                           ),
-                          child: Column(
-                            children: [
-                              Text(
-                                _listerData != null
-                                    ? '${_listerData!['first_name']} ${_listerData!['last_name']}'
-                                    : widget.listing.listerName,
-                                style: const TextStyle(
-                                  fontSize: 10,
-                                  fontWeight: FontWeight.w600,
-                                  color: Color(0xFF000080),
+                          
+                          const SizedBox(height: 6),
+                          
+                          // Bid Now Button
+                          _buildActionButton(
+                            'Bid Now',
+                            'assets/images/Bid Now.gif',
+                            Icons.gavel,
+                            Colors.orange,
+                            _handleBidClick,
+                            backgroundColor: const Color(0xFF000080),
+                            textColor: Colors.white,
+                          ),
+                          
+                          const SizedBox(height: 6),
+                          
+                          // Take a Tour Button
+                          _buildActionButton(
+                            'Take a Tour',
+                            'assets/icons/tour-icon.gif',
+                            Icons.view_in_ar,
+                            const Color(0xFF000080),
+                            () {
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (context) => MapView(
+                                    propertyId: widget.listing.id,
+                                    propertyTitle: widget.listing.title,
+                                    propertyAddress: '${widget.listing.location}, ${widget.listing.city}, ${widget.listing.state}',
+                                    latitude: double.tryParse(widget.listing.latitude) ?? 0.0,
+                                    longitude: double.tryParse(widget.listing.longitude) ?? 0.0,
+                                  ),
                                 ),
-                              ),
-                              const SizedBox(height: 8),
-                              // Row with Inspect button, DP, and Bid Now button
+                              );
+                            },
+                            backgroundColor: const Color(0xFF000080),
+                            textColor: Colors.white,
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                  
+                  // Space between Layer J and L
+                  const SizedBox(width: 8),
+                  
+                  // Layer L - Deposit Options (wider than Layer J)
+                  Expanded(
+                    flex: 6, // Increased flex value to make it wider
+                    child: Container(
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(
+                          color: const Color(0xFF000080).withOpacity(0.2),
+                        ),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.grey.withOpacity(0.1),
+                            spreadRadius: 0,
+                            blurRadius: 5,
+                            offset: const Offset(0, 2),
+                          ),
+                        ],
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text(
+                            'Deposit Options',
+                            style: TextStyle(
+                              fontSize: 9,
+                              fontWeight: FontWeight.bold,
+                              color: Color(0xFF000080),
+                            ),
+                          ),
+                          const SizedBox(height: 8),
+                          // More compact deposit options grid
+                          Column(
+                            children: [
+                              // Row 1: 10%, 30%, 50%
                               Row(
-                                mainAxisAlignment: MainAxisAlignment.center,
                                 children: [
-                                  // Inspect button on the left
-                                  Column(
-                                    children: [
-                                      const Text(
-                                        'Inspect',
-                                        style: TextStyle(
-                                          fontSize: 6,
-                                          fontWeight: FontWeight.w500,
-                                          color: Color(0xFF000080),
-                                        ),
-                                      ),
-                                      const SizedBox(height: 2),
-                                      GestureDetector(
-                                        onTap: _handleInspectClick,
-                                        child: Container(
-                                          width: 32,
-                                          height: 32,
-                                          decoration: BoxDecoration(
-                                            color: Colors.white,
-                                            shape: BoxShape.circle,
-                                            boxShadow: [
-                                              BoxShadow(
-                                                color: Colors.grey.withOpacity(0.2),
-                                                spreadRadius: 0,
-                                                blurRadius: 5,
-                                                offset: const Offset(0, 2),
-                                              ),
-                                            ],
-                                          ),
-                                          child: ClipOval(
-                                            child: Image.asset(
-                                              'assets/images/Inspect.gif',
-                                              width: 32,
-                                              height: 32,
-                                              fit: BoxFit.cover,
-                                              errorBuilder: (context, error, stackTrace) {
-                                                return const Icon(
-                                                  Icons.search,
-                                                  size: 16,
-                                                  color: Colors.blue,
-                                                );
-                                              },
-                                            ),
-                                          ),
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                  
-                                  // Space between button and DP
-                                  const SizedBox(width: 2),
-                                  
-                                  // Lister DP in the middle
-                                  Container(
-                                    width: 50,
-                                    height: 50,
-                                    decoration: BoxDecoration(
-                                      shape: BoxShape.circle,
-                                      border: Border.all(
-                                        color: Colors.white,
-                                        width: 2,
-                                      ),
-                                      boxShadow: [
-                                        BoxShadow(
-                                          color: Colors.grey.withOpacity(0.2),
-                                          spreadRadius: 0,
-                                          blurRadius: 5,
-                                          offset: const Offset(0, 2),
-                                        ),
-                                      ],
-                                    ),
-                                    child: ClipOval(
-                                      child: Image.network(
-                                        _listerData != null
-                                            ? (_listerData!['lister_dp'] ?? widget.listing.listerDp)
-                                            : widget.listing.listerDp,
-                                        width: 50,
-                                        height: 50,
-                                        fit: BoxFit.cover,
-                                        errorBuilder: (context, error, stackTrace) {
-                                          return const Icon(Icons.person, size: 32, color: Colors.grey);
-                                        },
-                                      ),
-                                    ),
-                                  ),
-                                  
-                                  // Space between DP and button
-                                  const SizedBox(width: 2),
-                                  
-                                  // Bid Now button on the right
-                                  Column(
-                                    children: [
-                                      const Text(
-                                        'Bid Now',
-                                        style: TextStyle(
-                                          fontSize: 6,
-                                          fontWeight: FontWeight.w500,
-                                          color: Color(0xFF000080),
-                                        ),
-                                      ),
-                                      const SizedBox(height: 2),
-                                      GestureDetector(
-                                        onTap: _handleBidClick,
-                                        child: Container(
-                                          width: 32,
-                                          height: 32,
-                                          decoration: BoxDecoration(
-                                            color: Colors.white,
-                                            shape: BoxShape.circle,
-                                            boxShadow: [
-                                              BoxShadow(
-                                                color: Colors.grey.withOpacity(0.2),
-                                                spreadRadius: 0,
-                                                blurRadius: 5,
-                                                offset: const Offset(0, 2),
-                                              ),
-                                            ],
-                                          ),
-                                          child: ClipOval(
-                                            child: Image.asset(
-                                              'assets/images/Bid Now.gif',
-                                              width: 32,
-                                              height: 32,
-                                              fit: BoxFit.cover,
-                                              errorBuilder: (context, error, stackTrace) {
-                                                return const Icon(
-                                                  Icons.gavel,
-                                                  size: 16,
-                                                  color: Colors.orange,
-                                                );
-                                              },
-                                            ),
-                                          ),
-                                        ),
-                                      ),
-                                    ],
-                                  ),
+                                  Expanded(child: _buildDepositOptionButton(10)),
+                                  const SizedBox(width: 4),
+                                  Expanded(child: _buildDepositOptionButton(30)),
+                                  const SizedBox(width: 4),
+                                  Expanded(child: _buildDepositOptionButton(50)),
                                 ],
                               ),
-                              
-                              // WhatsApp button directly under the DP
-                              const SizedBox(height: 8),
-                              Column(
+                              const SizedBox(height: 6),
+                              // Row 2: 20%, 40%, 60%
+                              Row(
                                 children: [
-                                  GestureDetector(
-                                    onTap: () => _handleWhatsappClick(context),
-                                    child: Container(
-                                      width: 32,
-                                      height: 32,
-                                      decoration: BoxDecoration(
-                                        color: Colors.white,
-                                        shape: BoxShape.circle,
-                                        boxShadow: [
-                                          BoxShadow(
-                                            color: Colors.grey.withOpacity(0.2),
-                                            spreadRadius: 0,
-                                            blurRadius: 5,
-                                            offset: const Offset(0, 2),
-                                          ),
-                                        ],
-                                      ),
-                                      child: ClipOval(
-                                        child: Image.asset(
-                                          'assets/images/Whatapp.gif',
-                                          width: 32,
-                                          height: 32,
-                                          fit: BoxFit.cover,
-                                          errorBuilder: (context, error, stackTrace) {
-                                            return const Icon(
-                                              Icons.message,
-                                              size: 16,
-                                              color: Colors.green,
-                                            );
-                                          },
-                                        ),
-                                      ),
-                                    ),
-                                  ),
-                                  const SizedBox(height: 2),
-                                  const Text(
-                                    'WhatsApp',
-                                    style: TextStyle(
-                                      fontSize: 8,
-                                      fontWeight: FontWeight.w500,
-                                      color: Color(0xFF000080),
-                                    ),
-                                  ),
+                                  Expanded(child: _buildDepositOptionButton(20)),
+                                  const SizedBox(width: 4),
+                                  Expanded(child: _buildDepositOptionButton(40)),
+                                  const SizedBox(width: 4),
+                                  Expanded(child: _buildDepositOptionButton(60)),
+                                ],
+                              ),
+                              const SizedBox(height: 6),
+                              // Row 3: 70%, 80%, 90%
+                              Row(
+                                children: [
+                                  Expanded(child: _buildDepositOptionButton(70)),
+                                  const SizedBox(width: 4),
+                                  Expanded(child: _buildDepositOptionButton(80)),
+                                  const SizedBox(width: 4),
+                                  Expanded(child: _buildDepositOptionButton(90)),
                                 ],
                               ),
                             ],
                           ),
-                        ),
+                        ],
                       ),
-                      // Vertical Divider - same height as containers
-                      Container(
-                        margin: const EdgeInsets.symmetric(horizontal: 12),
-                        width: 1,
-                        color: Colors.grey[300],
-                      ),
-
-                      // Layer K - Urgency Bell and Countdown
-                      Expanded(
-                        child: Container(
-                          padding: const EdgeInsets.all(8),
-                          decoration: BoxDecoration(
-                            color: Colors.white,
-                            borderRadius: BorderRadius.circular(12),
-                            border: Border.all(
-                              color: const Color(0xFFF39322).withOpacity(0.2),
-                            ),
-                            boxShadow: [
-                              BoxShadow(
-                                color: Colors.grey.withOpacity(0.1),
-                                spreadRadius: 0,
-                                blurRadius: 5,
-                                offset: const Offset(0, 2),
-                              ),
-                            ],
-                          ),
-                          child: Column(
-                            children: [
-                              Container(
-                                width: 40,
-                                height: 40,
-                                decoration: BoxDecoration(
-                                  color: Colors.white,
-                                  shape: BoxShape.circle,
-                                  boxShadow: [
-                                    BoxShadow(
-                                      color: Colors.grey.withOpacity(0.2),
-                                      spreadRadius: 0,
-                                      blurRadius: 5,
-                                      offset: const Offset(0, 2),
-                                    ),
-                                  ],
-                                ),
-                                child: Image.asset(
-                                  'assets/icons/bell.gif',
-                                  width: 28,
-                                  height: 28,
-                                  errorBuilder: (context, error, stackTrace) {
-                                    return const Icon(
-                                      Icons.notifications,
-                                      size: 24,
-                                      color: Color(0xFFF39322),
-                                    );
-                                  },
-                                ),
-                              ),
-                              const SizedBox(height: 8),
-                              Text(
-                                'Closing in',
-                                style: TextStyle(
-                                  fontSize: 12,
-                                  color: Colors.grey[600],
-                                ),
-                              ),
-                              const SizedBox(height: 4),
-                              CountdownTimer(
-                                targetDate: widget.listing.urgencyPeriod,
-                              ),
-                            ],
-                          ),
-                        ),
-                      ),
-                    ],
+                    ),
                   ),
-                  
                 ],
               ),
             ),
-            // Views Counter
+            
+            // Property Prospect Grid - 2 rows x 4 columns
             Padding(
-              padding: const EdgeInsets.only(right: 12, bottom: 8),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.end,
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Icon(
-                    Icons.visibility,
-                    size: 12,
-                    color: Colors.grey,
-                  ),
-                  const SizedBox(width: 4),
-                  Text(
-                    '${widget.listing.views} views',
-                    style: const TextStyle(
+                  const Text(
+                    'Property Prospects',
+                    style: TextStyle(
                       fontSize: 12,
-                      color: Colors.grey,
+                      fontWeight: FontWeight.bold,
+                      color: Color(0xFF000080),
                     ),
                   ),
+                  const SizedBox(height: 8),
+                  // Grid of property prospect buttons
+                  _buildPropertyProspectGrid(),
                 ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // Helper method to create action buttons
+  Widget _buildActionButton(
+    String label,
+    String iconPath,
+    IconData fallbackIcon,
+    Color iconColor,
+    VoidCallback onTap, {
+    Color backgroundColor = Colors.white,
+    Color textColor = const Color(0xFF000080),
+  }) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(
+            color: const Color(0xFF000080).withOpacity(0.2),
+          ),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.grey.withOpacity(0.1),
+              spreadRadius: 0,
+              blurRadius: 3,
+              offset: const Offset(0, 1),
+            ),
+          ],
+        ),
+        child: Row(
+          children: [
+            // Icon
+            Container(
+              width: 20,
+              height: 20,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: Colors.white,
+              ),
+              child: ClipOval(
+                child: Image.asset(
+                  iconPath,
+                  width: 20,
+                  height: 20,
+                  fit: BoxFit.cover,
+                  errorBuilder: (context, error, stackTrace) {
+                    return Icon(
+                      fallbackIcon,
+                      size: 14,
+                      color: iconColor,
+                    );
+                  },
+                ),
+              ),
+            ),
+            const SizedBox(width: 8),
+            // Label
+            Expanded(
+              child: Text(
+                label,
+                style: const TextStyle(
+                  fontSize: 10,
+                  fontWeight: FontWeight.w500,
+                  color: Color(0xFF000080),
+                ),
               ),
             ),
           ],
@@ -1672,6 +1550,116 @@ class _LayeredListingCardState extends State<LayeredListingCard> {
     }
   }
 
+  // Build the property prospect grid (2 rows x 4 columns)
+  Widget _buildPropertyProspectGrid() {
+    // Get property type based on listing category
+    final propertyType = _getPropertyTypeFromCategory(widget.listing.category);
+    
+    // Get property prospect suggestions
+    final prospects = PropertyProspectUtil.getRandomSuggestionsForType(
+      propertyType,
+      widget.listing.price,
+    );
+    
+    return Column(
+      children: [
+        // First row (4 prospects)
+        Row(
+          children: [
+            for (int i = 0; i < 4; i++)
+              Expanded(
+                child: Padding(
+                  padding: const EdgeInsets.all(2.0),
+                  child: _buildProspectButton(prospects[i]),
+                ),
+              ),
+          ],
+        ),
+        const SizedBox(height: 4),
+        // Second row (4 prospects)
+        Row(
+          children: [
+            for (int i = 4; i < 8; i++)
+              Expanded(
+                child: Padding(
+                  padding: const EdgeInsets.all(2.0),
+                  child: _buildProspectButton(prospects[i]),
+                ),
+              ),
+          ],
+        ),
+      ],
+    );
+  }
+  
+  // Helper method to convert listing category to PropertyType
+  PropertyType _getPropertyTypeFromCategory(String category) {
+    switch (category.toLowerCase()) {
+      case 'residential':
+        return PropertyType.residential;
+      case 'commercial':
+        return PropertyType.commercial;
+      case 'land':
+        return PropertyType.land;
+      case 'material':
+        return PropertyType.material;
+      default:
+        return PropertyType.residential;
+    }
+  }
+  
+  // Build a single property prospect button
+    Widget _buildProspectButton(PropertyProspect prospect) {
+    return GestureDetector(
+      onTap: () => _handleProspectClick(prospect),
+      child: Container(
+        padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 4),
+        decoration: BoxDecoration(
+          color: Colors.white, // White button background
+          borderRadius: BorderRadius.circular(8),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.1), // Subtle shadow
+              spreadRadius: 1,
+              blurRadius: 4,
+              offset: const Offset(0, 2), // Drop shadow
+            ),
+          ],
+          border: Border.all(
+            color: const Color(0xFFE0E0E0), // Optional soft border
+            width: 1,
+          ),
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              prospect.title,
+              style: const TextStyle(
+                fontSize: 9,
+                fontWeight: FontWeight.w400,
+                color: Color(0xFF000080), // Corrected to opaque navy blue
+              ),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              textAlign: TextAlign.center,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+  
+  // Handle property prospect button click
+  void _handleProspectClick(PropertyProspect prospect) {
+    PropertyProspectUtil.showProspectDetails(
+      context,
+      prospect,
+      widget.listing.price,
+    );
+  }
+  
+  // Modified for smaller, more compact deposit buttons
   Widget _buildDepositOptionButton(int percentage) {
     final depositAmount = widget.listing.price * percentage / 100;
     return GestureDetector(
@@ -1680,55 +1668,47 @@ class _LayeredListingCardState extends State<LayeredListingCard> {
         debugPrint('Selected deposit: $percentage% - $depositAmount');
       },
       child: Container(
-        padding: const EdgeInsets.symmetric(vertical: 10),
+        padding: const EdgeInsets.symmetric(vertical: 6),
         decoration: BoxDecoration(
           color: const Color(0xFF000080).withOpacity(0.1), // Blue transparent background
-          borderRadius: BorderRadius.circular(12),
+          borderRadius: BorderRadius.circular(8),
           border: Border.all(
             color: const Color(0xFF000080).withOpacity(0.3), // Blue transparent border
-            width: 1.5,
+            width: 1,
           ),
           boxShadow: [
             BoxShadow(
               color: const Color(0xFF000080).withOpacity(0.15),
               spreadRadius: 0,
-              blurRadius: 8,
-              offset: const Offset(0, 3),
+              blurRadius: 4,
+              offset: const Offset(0, 2),
             ),
           ],
-          gradient: LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-            colors: [
-              const Color(0xFF000080).withOpacity(0.12),
-              const Color(0xFF000080).withOpacity(0.08),
-            ],
-          ),
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.center,
           children: [
             Container(
-              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+              padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
               decoration: BoxDecoration(
                 color: const Color(0xFF000080).withOpacity(0.8),
-                borderRadius: BorderRadius.circular(6),
+                borderRadius: BorderRadius.circular(4),
               ),
               child: Text(
                 '$percentage%',
                 style: const TextStyle(
-                  fontSize: 8,
+                  fontSize: 7,
                   fontWeight: FontWeight.w600,
-                  color: Colors.white,
+                  color: Color.fromARGB(255, 255, 255, 255),
                 ),
               ),
             ),
-            const SizedBox(height: 3),
+            const SizedBox(height: 2),
             getNairaRichText(
               depositAmount,
-              fontSize: 10.0,
+              fontSize: 8.0,
               fontWeight: FontWeight.bold,
-              textColor: const Color(0xFF000080), // Changed to blue
+              textColor: const Color(0xFF000080),
             ),
           ],
         ),
@@ -1970,6 +1950,123 @@ class DashboardSidebar extends StatelessWidget {
   }
 }
 
+// Custom background painter for dashboard screen
+class _DashboardBackgroundPainter extends CustomPainter {
+  @override
+  void paint(Canvas canvas, Size size) {
+    final width = size.width;
+    final height = size.height;
+    
+    // Create paint objects for different elements
+    final Paint gradientPaint = Paint()
+      ..shader = const LinearGradient(
+        colors: [
+          Color(0xFF2C3E50), // Deep blue
+          Color(0xFF4A5568), // Slate
+          Color(0xFF1A365D), // Navy blue
+        ],
+        begin: Alignment.topLeft,
+        end: Alignment.bottomRight,
+      ).createShader(Rect.fromLTWH(0, 0, width, height));
+    
+    final Paint shapePaint1 = Paint()
+      ..color = const Color(0xFF34495E).withOpacity(0.7)
+      ..style = PaintingStyle.fill;
+    
+    final Paint shapePaint2 = Paint()
+      ..color = const Color(0xFF1A365D).withOpacity(0.5)
+      ..style = PaintingStyle.fill;
+    
+    final Paint shapePaint3 = Paint()
+      ..color = const Color(0xFF0A2A5E).withOpacity(0.4)
+      ..style = PaintingStyle.fill;
+    
+    // Draw background gradient
+    canvas.drawRect(Rect.fromLTWH(0, 0, width, height), gradientPaint);
+    
+    // Draw geometric shapes for 3D effect
+    
+    // Large circle in the bottom right
+    canvas.drawCircle(
+      Offset(width * 0.9, height * 0.9),
+      width * 0.3,
+      shapePaint1,
+    );
+    
+    // Medium circle in the top left
+    canvas.drawCircle(
+      Offset(width * 0.15, height * 0.2),
+      width * 0.15,
+      shapePaint2,
+    );
+    
+    // Small circle in the middle right
+    canvas.drawCircle(
+      Offset(width * 0.8, height * 0.4),
+      width * 0.1,
+      shapePaint3,
+    );
+    
+    // Draw a curved path in the background
+    final Path path1 = Path()
+      ..moveTo(0, height * 0.3)
+      ..quadraticBezierTo(width * 0.4, height * 0.2, width * 0.8, height * 0.4)
+      ..quadraticBezierTo(width * 1.0, height * 0.5, width, height * 0.65)
+      ..lineTo(width, height)
+      ..lineTo(0, height)
+      ..close();
+    
+    canvas.drawPath(path1, shapePaint2);
+    
+    // Draw another curved path
+    final Path path2 = Path()
+      ..moveTo(0, height * 0.65)
+      ..quadraticBezierTo(width * 0.3, height * 0.7, width * 0.5, height * 0.6)
+      ..quadraticBezierTo(width * 0.7, height * 0.5, width, height * 0.3)
+      ..lineTo(width, 0)
+      ..lineTo(0, 0)
+      ..close();
+    
+    // Create a new paint for path2
+    final Paint pathPaint2 = Paint()
+      ..color = const Color(0xFF1E3A5F).withOpacity(0.3)
+      ..style = PaintingStyle.fill;
+    canvas.drawPath(path2, pathPaint2);
+    
+    // Add floating polygons
+    final Path polygon1 = Path();
+    polygon1.addPolygon([
+      Offset(width * 0.2, height * 0.4),
+      Offset(width * 0.3, height * 0.35),
+      Offset(width * 0.25, height * 0.25),
+      Offset(width * 0.15, height * 0.3),
+    ], true);
+    
+    // Create a new paint for polygon1
+    final Paint polygonPaint1 = Paint()
+      ..color = const Color(0xFF2C5282).withOpacity(0.3)
+      ..style = PaintingStyle.fill;
+    canvas.drawPath(polygon1, polygonPaint1);
+    
+    final Path polygon2 = Path();
+    polygon2.addPolygon([
+      Offset(width * 0.6, height * 0.7),
+      Offset(width * 0.75, height * 0.65),
+      Offset(width * 0.7, height * 0.5),
+      Offset(width * 0.55, height * 0.55),
+    ], true);
+    
+    // Create a new paint for polygon2
+    final Paint polygonPaint2 = Paint()
+      ..color = const Color(0xFF2B6CB0).withOpacity(0.4)
+      ..style = PaintingStyle.fill;
+    canvas.drawPath(polygon2, polygonPaint2);
+  }
+
+  @override
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => true;
+}
+
 // Main Dashboard Screen
 class DashboardScreen extends StatefulWidget {
   const DashboardScreen({super.key});
@@ -1978,7 +2075,7 @@ class DashboardScreen extends StatefulWidget {
   State<DashboardScreen> createState() => _DashboardScreenState();
 }
 
-class _DashboardScreenState extends State<DashboardScreen> {
+class _DashboardScreenState extends State<DashboardScreen> with SingleTickerProviderStateMixin {
   final UserService _userService = UserService();
   
   String _selectedCategory = '';
@@ -1991,11 +2088,32 @@ class _DashboardScreenState extends State<DashboardScreen> {
   UserProfile? _userData;
   final Map<String, dynamic> _categoryFilters = {};
 
+  // Animation controller for the background effects
+  late AnimationController _animationController;
+  late Animation<double> _backgroundAnimation;
+
   @override
   void initState() {
     super.initState();
     _fetchUserData();
     _fetchListings();
+
+    // Initialize animation controller
+    _animationController = AnimationController(
+      vsync: this,
+      duration: const Duration(seconds: 20),
+    )..repeat(reverse: true);
+
+    _backgroundAnimation = Tween<double>(
+      begin: 0.0,
+      end: 1.0,
+    ).animate(_animationController);
+  }
+
+  @override
+  void dispose() {
+    _animationController.dispose();
+    super.dispose();
   }
 
   Future<void> _fetchUserData() async {
@@ -2198,15 +2316,66 @@ class _DashboardScreenState extends State<DashboardScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.grey[100],
       body: Stack(
         children: [
+          // Animated 3D Background
+          AnimatedBuilder(
+            animation: _backgroundAnimation,
+            builder: (context, child) {
+              return Container(
+                width: double.infinity,
+                height: double.infinity,
+                decoration: const BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                    colors: [
+                      Color(0xFF2C3E50), // Deep blue
+                      Color(0xFF4A5568), // Slate
+                      Color(0xFF1A365D), // Navy blue
+                    ],
+                  ),
+                ),
+                child: CustomPaint(
+                  painter: _DashboardBackgroundPainter(),
+                  size: Size.infinite,
+                ),
+              );
+            },
+          ),
+          
+          // Glassmorphism overlay
+          Container(
+            width: double.infinity,
+            height: double.infinity,
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topCenter,
+                end: Alignment.bottomCenter,
+                colors: [
+                  Colors.white.withOpacity(0.4),
+                  Colors.white.withOpacity(0.1),
+                  Colors.white.withOpacity(0.3),
+                ],
+              ),
+            ),
+          ),
+          
           // Main content
           Column(
             children: [
               // Fixed header
               Container(
-                color: Colors.white,
+                decoration: BoxDecoration(
+                  color: Colors.white.withOpacity(0.9),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withOpacity(0.05),
+                      blurRadius: 10,
+                      spreadRadius: 0,
+                    ),
+                  ],
+                ),
                 child: SafeArea(
                   bottom: false,
                   child: Padding(
@@ -2308,16 +2477,20 @@ class _DashboardScreenState extends State<DashboardScreen> {
                         Container(
                           padding: const EdgeInsets.all(16),
                           decoration: BoxDecoration(
-                            color: Colors.white,
+                            color: Colors.white.withOpacity(0.8),
                             borderRadius: BorderRadius.circular(16),
                             boxShadow: [
                               BoxShadow(
-                                color: Colors.grey.withOpacity(0.1),
+                                color: Colors.black.withOpacity(0.05),
                                 spreadRadius: 0,
                                 blurRadius: 10,
                                 offset: const Offset(0, 4),
                               ),
                             ],
+                            border: Border.all(
+                              color: Colors.white.withOpacity(0.9),
+                              width: 1.0,
+                            ),
                           ),
                           child: Row(
                             mainAxisAlignment: MainAxisAlignment.spaceEvenly,
@@ -2333,7 +2506,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                                 ),
                               ),
                               
-                              const SizedBox(width: 8), // Matching bottom nav spacing
+                              const SizedBox(width: 6), // Matching bottom nav spacing
                               
                               // Commercial Button - Aligns with Invest
                               SizedBox(
@@ -2346,7 +2519,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                                 ),
                               ),
                               
-                              const SizedBox(width: 8), // Matching bottom nav spacing
+                              const SizedBox(width: 6), // Matching bottom nav spacing
                               
                               // Sidebar Toggle Button - Aligns with Add button
                               SizedBox(
@@ -2389,7 +2562,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                                 ),
                               ),
                               
-                              const SizedBox(width: 8), // Matching bottom nav spacing
+                              const SizedBox(width: 6), // Matching bottom nav spacing
                               
                               // Land Button - Aligns with Bid
                               SizedBox(
@@ -2402,7 +2575,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                                 ),
                               ),
                               
-                              const SizedBox(width: 8), // Matching bottom nav spacing
+                              const SizedBox(width: 6), // Matching bottom nav spacing
                               
                               // Material Button - Aligns with Explore
                               SizedBox(
@@ -2423,142 +2596,149 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 ),
               ),
 
-              // Scrollable content
+              // Scrollable content - Full width with no horizontal padding
               Expanded(
                 child: SingleChildScrollView(
-                  padding: const EdgeInsets.all(16),
+                  padding: const EdgeInsets.symmetric(vertical: 16),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       // Recommended Properties Section
                       Container(
-                        padding: const EdgeInsets.all(16),
+                        margin: const EdgeInsets.symmetric(vertical: 16),
                         decoration: BoxDecoration(
-                          color: Colors.white,
+                          color: Colors.white.withOpacity(0.9),
                           borderRadius: BorderRadius.circular(16),
                           boxShadow: [
                             BoxShadow(
-                              color: Colors.grey.withOpacity(0.1),
+                              color: Colors.black.withOpacity(0.05),
                               spreadRadius: 0,
-                              blurRadius: 10,
-                              offset: const Offset(0, 4),
+                              blurRadius: 15,
+                              offset: const Offset(0, 5),
                             ),
                           ],
+                          border: Border.all(
+                            color: Colors.white.withOpacity(0.2),
+                            width: 1.0,
+                          ),
                         ),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              _selectedCategory.isNotEmpty
-                                  ? '${_selectedCategory.substring(0, 1).toUpperCase()}${_selectedCategory.substring(1)} Listings'
-                                  : 'Recommended For You',
-                              style: const TextStyle(
-                                fontSize: 18,
-                                fontWeight: FontWeight.bold,
-                                color: Color(0xFF000080),
-                              ),
-                            ),
-                            const SizedBox(height: 16),
-                            if (_loading)
-                              const Center(
-                                child: CircularProgressIndicator(
-                                  color: Color(0xFFF39322),
+                        child: Padding(
+                          padding: const EdgeInsets.all(16),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                _selectedCategory.isNotEmpty
+                                    ? '${_selectedCategory.substring(0, 1).toUpperCase()}${_selectedCategory.substring(1)} Listings'
+                                    : 'Recommended For You',
+                                style: const TextStyle(
+                                  fontSize: 18,
+                                  fontWeight: FontWeight.bold,
+                                  color: Color(0xFF000080),
                                 ),
-                              )
-                            else if (_error != null)
-                              Center(
-                                child: Column(
-                                  children: [
-                                    const Icon(
-                                      Icons.error_outline,
-                                      size: 48,
-                                      color: Colors.red,
-                                    ),
-                                    const SizedBox(height: 16),
-                                    Text(
-                                      _error!,
-                                      style: const TextStyle(
+                              ),
+                              const SizedBox(height: 16),
+                              if (_loading)
+                                const Center(
+                                  child: CircularProgressIndicator(
+                                    color: Color(0xFFF39322),
+                                  ),
+                                )
+                              else if (_error != null)
+                                Center(
+                                  child: Column(
+                                    children: [
+                                      const Icon(
+                                        Icons.error_outline,
+                                        size: 48,
                                         color: Colors.red,
                                       ),
-                                    ),
-                                    const SizedBox(height: 16),
-                                    ElevatedButton(
-                                      onPressed: () {
-                                        setState(() {
-                                          _loading = true;
-                                          _error = null;
-                                        });
-                                        _fetchListings();
-                                      },
-                                      style: ElevatedButton.styleFrom(
-                                        foregroundColor: Colors.white,
-                                        backgroundColor: const Color(0xFFF39322),
+                                      const SizedBox(height: 16),
+                                      Text(
+                                        _error!,
+                                        style: const TextStyle(
+                                          color: Colors.red,
+                                        ),
                                       ),
-                                      child: const Text('Retry'),
-                                    ),
-                                  ],
-                                ),
-                              )
-                            else if (_listings.isEmpty)
-                              Center(
-                                child: Column(
-                                  children: [
-                                    const Icon(
-                                      Icons.search_off,
-                                      size: 48,
-                                      color: Colors.grey,
-                                    ),
-                                    const SizedBox(height: 16),
-                                    Text(
-                                      'No ${_selectedCategory.isNotEmpty ? _selectedCategory : ''} listings found',
-                                      style: const TextStyle(
+                                      const SizedBox(height: 16),
+                                      ElevatedButton(
+                                        onPressed: () {
+                                          setState(() {
+                                            _loading = true;
+                                            _error = null;
+                                          });
+                                          _fetchListings();
+                                        },
+                                        style: ElevatedButton.styleFrom(
+                                          foregroundColor: Colors.white,
+                                          backgroundColor: const Color(0xFFF39322),
+                                        ),
+                                        child: const Text('Retry'),
+                                      ),
+                                    ],
+                                  ),
+                                )
+                              else if (_listings.isEmpty)
+                                Center(
+                                  child: Column(
+                                    children: [
+                                      const Icon(
+                                        Icons.search_off,
+                                        size: 48,
                                         color: Colors.grey,
                                       ),
-                                    ),
-                                    const SizedBox(height: 16),
-                                    Row(
-                                      mainAxisAlignment: MainAxisAlignment.center,
-                                      children: [
-                                        ElevatedButton(
-                                          onPressed: () {
-                                            setState(() {
-                                              _selectedCategory = '';
-                                              _loading = true;
-                                            });
-                                            _fetchListings();
-                                          },
-                                          style: ElevatedButton.styleFrom(
-                                            foregroundColor: Colors.white,
-                                            backgroundColor: const Color(0xFFF39322),
-                                          ),
-                                          child: const Text('Show All'),
+                                      const SizedBox(height: 16),
+                                      Text(
+                                        'No ${_selectedCategory.isNotEmpty ? _selectedCategory : ''} listings found',
+                                        style: const TextStyle(
+                                          color: Colors.grey,
                                         ),
-                                        const SizedBox(width: 16),
-                                        ElevatedButton(
-                                          onPressed: () {
-                                            // Navigate to add listing
-                                            Navigator.pushNamed(context, '/add');
-                                          },
-                                          style: ElevatedButton.styleFrom(
-                                            foregroundColor: Colors.white,
-                                            backgroundColor: const Color(0xFF000080),
+                                      ),
+                                      const SizedBox(height: 16),
+                                      Row(
+                                        mainAxisAlignment: MainAxisAlignment.center,
+                                        children: [
+                                          ElevatedButton(
+                                            onPressed: () {
+                                              setState(() {
+                                                _selectedCategory = '';
+                                                _loading = true;
+                                              });
+                                              _fetchListings();
+                                            },
+                                            style: ElevatedButton.styleFrom(
+                                              foregroundColor: Colors.white,
+                                              backgroundColor: const Color(0xFFF39322),
+                                            ),
+                                            child: const Text('Show All'),
                                           ),
-                                          child: const Text('Add Listing'),
-                                        ),
-                                      ],
-                                    ),
-                                  ],
+                                          const SizedBox(width: 16),
+                                          ElevatedButton(
+                                            onPressed: () {
+                                              // Navigate to add listing
+                                              Navigator.pushNamed(context, '/add');
+                                            },
+                                            style: ElevatedButton.styleFrom(
+                                              foregroundColor: Colors.white,
+                                              backgroundColor: const Color(0xFF000080),
+                                            ),
+                                            child: const Text('Add Listing'),
+                                          ),
+                                        ],
+                                      ),
+                                    ],
+                                  ),
+                                )
+                              else
+                                Column(
+                                  children: _listings
+                                      .map((listing) => LayeredListingCard(
+                                            listing: listing,
+                                          ))
+                                      .toList(),
                                 ),
-                              )
-                            else
-                              Column(
-                                children: _listings
-                                    .map((listing) => LayeredListingCard(
-                                          listing: listing,
-                                        ))
-                                    .toList(),
-                              ),
-                          ],
+                            ],
+                          ),
                         ),
                       ),
                       const SizedBox(height: 40), // Extra space at bottom

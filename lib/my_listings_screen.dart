@@ -1,56 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:cached_network_image/cached_network_image.dart';
 import 'shared/bottom_navigation.dart';
-import 'dart:async';
-
-// Reusing the Listing model from dashboard_screen.dart
-class Listing {
-  final String id;
-  final String title;
-  final String description;
-  final double price;
-  final String location;
-  final String city;
-  final String state;
-  final String country;
-  final String category;
-  final String status;
-  final String createdAt;
-  final int views;
-  final String listingImage;
-  final String latitude;
-  final String longitude;
-
-  Listing({
-    required this.id,
-    required this.title,
-    required this.description,
-    required this.price,
-    required this.location,
-    required this.city,
-    required this.state,
-    required this.country,
-    required this.category,
-    required this.status,
-    required this.createdAt,
-    required this.views,
-    required this.listingImage,
-    required this.latitude,
-    required this.longitude,
-  });
-}
-
-// Format price to Nigerian Naira (reused from dashboard_screen.dart)
-String formatPrice(num amount, {String symbol = '₦'}) {
-  if (amount >= 1e9) {
-    return '$symbol${(amount / 1e9).toStringAsFixed(1)}B';
-  } else if (amount >= 1e6) {
-    return '$symbol${(amount / 1e6).toStringAsFixed(1)}M';
-  } else if (amount >= 1e3) {
-    return '$symbol${(amount / 1e3).toStringAsFixed(1)}K';
-  } else {
-    return '$symbol$amount';
-  }
-}
+import 'api/listings_api.dart';
+import 'utils/currency_formatter.dart';
 
 class MyListingsScreen extends StatefulWidget {
   const MyListingsScreen({Key? key}) : super(key: key);
@@ -135,121 +87,34 @@ class _MyListingsScreenState extends State<MyListingsScreen> with SingleTickerPr
   }
 
   void _fetchListings() {
-    // Simulate API call
+    // Fetch real data from PostgreSQL database
     setState(() {
       _loading = true;
       _error = null;
     });
 
-    Future.delayed(const Duration(seconds: 1), () {
+    // Force refresh to ensure latest data
+    ListingsApi.getUserListings(forceRefresh: true).then((listings) {
       if (mounted) {
-        try {
-          final mockListings = [
-            Listing(
-              id: '1',
-              title: '3 Bedroom Apartment in Lekki Phase 1',
-              description: 'Beautiful 3 bedroom apartment with modern finishes, 24/7 electricity, and security.',
-              price: 75000000.00,
-              location: 'Lekki Phase 1',
-              city: 'Lagos',
-              state: 'Lagos',
-              country: 'Nigeria',
-              category: 'residential',
-              status: 'active',
-              createdAt: DateTime.now().subtract(const Duration(days: 5)).toIso8601String(),
-              views: 42,
-              listingImage: 'assets/images/residential1.jpg',
-              latitude: '6.4698',
-              longitude: '3.5852',
-            ),
-            Listing(
-              id: '2',
-              title: 'Office Space in Victoria Island',
-              description: 'Prime office space with modern facilities, ideal for corporate headquarters.',
-              price: 150000000.00,
-              location: 'Victoria Island',
-              city: 'Lagos',
-              state: 'Lagos',
-              country: 'Nigeria',
-              category: 'commercial',
-              status: 'pending',
-              createdAt: DateTime.now().subtract(const Duration(days: 10)).toIso8601String(),
-              views: 56,
-              listingImage: 'assets/images/commercial1.jpg',
-              latitude: '6.4271',
-              longitude: '3.4139',
-            ),
-            Listing(
-              id: '3',
-              title: '2 Acres of Land in Epe',
-              description: 'Prime land with C of O, perfect for residential development.',
-              price: 50000000.00,
-              location: 'Epe',
-              city: 'Lagos',
-              state: 'Lagos',
-              country: 'Nigeria',
-              category: 'land',
-              status: 'sold',
-              createdAt: DateTime.now().subtract(const Duration(days: 30)).toIso8601String(),
-              views: 29,
-              listingImage: 'assets/images/land1.jpeg',
-              latitude: '6.5844',
-              longitude: '3.9795',
-            ),
-            Listing(
-              id: '4',
-              title: 'Dangote Cement - Wholesale Price',
-              description: 'High-quality Dangote cement available in bulk quantities at wholesale prices.',
-              price: 4000.00,
-              location: 'Oshodi',
-              city: 'Lagos',
-              state: 'Lagos',
-              country: 'Nigeria',
-              category: 'material',
-              status: 'active',
-              createdAt: DateTime.now().subtract(const Duration(days: 2)).toIso8601String(),
-              views: 103,
-              listingImage: 'assets/images/material1.jpg',
-              latitude: '6.5536',
-              longitude: '3.3958',
-            ),
-            Listing(
-              id: '5',
-              title: 'Luxury 5 Bedroom Duplex in Ikoyi',
-              description: 'Exquisite 5 bedroom duplex with swimming pool, gym, and garden in a serene environment.',
-              price: 250000000.00,
-              location: 'Banana Island, Ikoyi',
-              city: 'Lagos',
-              state: 'Lagos',
-              country: 'Nigeria',
-              category: 'residential',
-              status: 'expired',
-              createdAt: DateTime.now().subtract(const Duration(days: 60)).toIso8601String(),
-              views: 78,
-              listingImage: 'assets/images/residential2.jpg',
-              latitude: '6.4698',
-              longitude: '3.5852',
-            ),
-          ];
-
-          setState(() {
-            _listings = mockListings;
-            _loading = false;
-            
-            // Count listings by status
-            _activeCount = mockListings.where((listing) => listing.status == 'active').length;
-            _pendingCount = mockListings.where((listing) => listing.status == 'pending').length;
-            _soldCount = mockListings.where((listing) => listing.status == 'sold').length;
-            _expiredCount = mockListings.where((listing) => listing.status == 'expired').length;
-          });
+        setState(() {
+          _listings = listings;
+          _loading = false;
           
-          _filterListings();
-        } catch (e) {
-          setState(() {
-            _loading = false;
-            _error = 'Failed to load listings: $e';
-          });
-        }
+          // Count listings by status
+          _activeCount = listings.where((listing) => listing.status == 'active').length;
+          _pendingCount = listings.where((listing) => listing.status == 'pending').length;
+          _soldCount = listings.where((listing) => listing.status == 'sold').length;
+          _expiredCount = listings.where((listing) => listing.status == 'expired').length;
+        });
+        
+        _filterListings();
+      }
+    }).catchError((error) {
+      if (mounted) {
+        setState(() {
+          _loading = false;
+          _error = 'Failed to load listings: ${error.toString()}';
+        });
       }
     });
   }
@@ -344,25 +209,43 @@ class _MyListingsScreenState extends State<MyListingsScreen> with SingleTickerPr
       ),
     );
 
-    // Simulate API call
-    Future.delayed(const Duration(seconds: 1), () {
+    // Delete from backend database
+    ListingsApi.deleteListing(id).then((success) {
       if (mounted) {
-        setState(() {
-          _listings.removeWhere((listing) => listing.id == id);
+        if (success) {
+          setState(() {
+            _listings.removeWhere((listing) => listing.id == id);
+            
+            // Update counts
+            _activeCount = _listings.where((listing) => listing.status == 'active').length;
+            _pendingCount = _listings.where((listing) => listing.status == 'pending').length;
+            _soldCount = _listings.where((listing) => listing.status == 'sold').length;
+            _expiredCount = _listings.where((listing) => listing.status == 'expired').length;
+          });
           
-          // Update counts
-          _activeCount = _listings.where((listing) => listing.status == 'active').length;
-          _pendingCount = _listings.where((listing) => listing.status == 'pending').length;
-          _soldCount = _listings.where((listing) => listing.status == 'sold').length;
-          _expiredCount = _listings.where((listing) => listing.status == 'expired').length;
-        });
-        
-        _filterListings();
+          _filterListings();
 
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Listing deleted successfully'),
+              backgroundColor: Colors.green,
+            ),
+          );
+        } else {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Failed to delete listing. Please try again.'),
+              backgroundColor: Colors.red,
+            ),
+          );
+        }
+      }
+    }).catchError((error) {
+      if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Listing deleted successfully'),
-            backgroundColor: Colors.green,
+          SnackBar(
+            content: Text('Error deleting listing: ${error.toString()}'),
+            backgroundColor: Colors.red,
           ),
         );
       }
@@ -648,24 +531,64 @@ class _MyListingsScreenState extends State<MyListingsScreen> with SingleTickerPr
               children: [
                 ClipRRect(
                   borderRadius: const BorderRadius.vertical(top: Radius.circular(12)),
-                  child: Image.asset(
-                    listing.listingImage,
-                    height: 180,
-                    width: double.infinity,
-                    fit: BoxFit.cover,
-                    errorBuilder: (context, error, stackTrace) {
-                      return Container(
+                  child: listing.image.startsWith('http')
+                    ? CachedNetworkImage(
+                        imageUrl: listing.image,
                         height: 180,
                         width: double.infinity,
-                        color: Colors.grey[300],
-                        child: const Icon(
-                          Icons.image_not_supported,
-                          size: 48,
-                          color: Colors.grey,
+                        fit: BoxFit.cover,
+                        placeholder: (context, url) => Container(
+                          height: 180,
+                          width: double.infinity,
+                          color: Colors.grey[200],
+                          child: const Center(
+                            child: CircularProgressIndicator(
+                              valueColor: AlwaysStoppedAnimation<Color>(Color(0xFFF39322)),
+                              strokeWidth: 2,
+                            ),
+                          ),
                         ),
-                      );
-                    },
-                  ),
+                        errorWidget: (context, url, error) {
+                          String defaultImage;
+                          switch(listing.category.toLowerCase()) {
+                            case 'commercial':
+                              defaultImage = 'assets/images/commercial1.jpg';
+                              break;
+                            case 'land':
+                              defaultImage = 'assets/images/land1.jpeg';
+                              break;
+                            case 'material':
+                              defaultImage = 'assets/images/material1.jpg';
+                              break;
+                            default:
+                              defaultImage = 'assets/images/residential1.jpg';
+                          }
+                          return Image.asset(
+                            defaultImage,
+                            height: 180,
+                            width: double.infinity,
+                            fit: BoxFit.cover,
+                          );
+                        },
+                      )
+                    : Image.asset(
+                        listing.image,
+                        height: 180,
+                        width: double.infinity,
+                        fit: BoxFit.cover,
+                        errorBuilder: (context, error, stackTrace) {
+                          return Container(
+                            height: 180,
+                            width: double.infinity,
+                            color: Colors.grey[300],
+                            child: const Icon(
+                              Icons.image_not_supported,
+                              size: 48,
+                              color: Colors.grey,
+                            ),
+                          );
+                        },
+                      ),
                 ),
                 Positioned(
                   top: 12,
@@ -743,9 +666,9 @@ class _MyListingsScreenState extends State<MyListingsScreen> with SingleTickerPr
                     ],
                   ),
                   const SizedBox(height: 8),
-                  Text(
-                    formatPrice(listing.price),
-                    style: const TextStyle(
+                  CurrencyFormatter.formatNairaRichText(
+                    listing.price,
+                    textStyle: const TextStyle(
                       fontSize: 18,
                       fontWeight: FontWeight.bold,
                       color: Color(0xFFF39322),

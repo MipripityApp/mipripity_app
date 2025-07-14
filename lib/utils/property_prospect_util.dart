@@ -1,5 +1,6 @@
 import 'dart:math';
 import 'package:flutter/material.dart';
+import '../utils/currency_formatter.dart';
 
 /// Utility class for handling property prospect suggestions
 class PropertyProspectUtil {
@@ -195,6 +196,29 @@ class PropertyProspectUtil {
     );
   }
   
+  /// Get RichText with proper Naira symbol using CustomFont
+  static Widget getNairaRichText(
+    num price, {
+    Color textColor = Colors.black,
+    double fontSize = 12.0,
+    FontWeight fontWeight = FontWeight.bold,
+  }) {
+    return CurrencyFormatter.formatNairaRichText(
+      price,
+      textStyle: TextStyle(
+        fontSize: fontSize,
+        fontWeight: fontWeight,
+        color: textColor,
+      ),
+      symbolStyle: CurrencyFormatter.getNairaTextStyle(
+        fontSize: fontSize,
+        fontWeight: fontWeight,
+        color: textColor,
+      ),
+      useAbbreviations: true,
+    );
+  }
+
   /// Build a cost item widget for the modal
   static Widget _buildCostItem(
     String label, 
@@ -220,13 +244,11 @@ class PropertyProspectUtil {
               color: color,
             ),
           ),
-          Text(
-            _formatCurrency(amount),
-            style: TextStyle(
-              fontSize: 16,
-              fontWeight: FontWeight.bold,
-              color: color,
-            ),
+          getNairaRichText(
+            amount,
+            fontSize: 16.0,
+            fontWeight: FontWeight.bold,
+            textColor: color,
           ),
         ],
       ),
@@ -258,14 +280,6 @@ class PropertyProspectUtil {
         ],
       ),
     );
-  }
-  
-  /// Format currency for display
-  static String _formatCurrency(double amount) {
-    return '₦${amount.toStringAsFixed(0).replaceAllMapped(
-      RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'),
-      (Match m) => '${m[1]},'
-    )}';
   }
   
   /// Residential Property Suggestions

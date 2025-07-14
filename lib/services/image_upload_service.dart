@@ -2,8 +2,8 @@ import 'dart:io';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
 import 'package:path/path.dart';
-import 'package:cloudinary_public/cloudinary_public.dart';
 import 'package:image_picker/image_picker.dart';
+import '../api/api_config.dart';
 
 // Result class to provide more detailed upload results
 class UploadResult {
@@ -25,119 +25,92 @@ class UploadResult {
 }
 
 class ImageUploadService {
-  // ImgBB configuration for fallback
-  static const String apiKey = '3d5860aa87a1edb40dead8debc3c983e'; // Get a free key from imgbb.com
-  static const String uploadUrl = 'https://api.imgbb.com/1/upload';
-  
-  // Cloudinary configuration
-  static final cloudinary = CloudinaryPublic(
-    'dxhrlaz6j',
-    'mipripity',
-    cache: false,
-  );
-
-  // Backend API URL - update with your actual backend URL
-  static const String backendUploadUrl = 'http://localhost:8080/upload';
-  
   // List to store uploaded image URLs
   static List<String> uploadedImageUrls = [];
   
-  // Pick and upload image to backend method (from task specification)
+  // Pick and upload image to backend method
   static Future<void> pickAndUploadImageToBackend() async {
     final picker = ImagePicker();
     final pickedFile = await picker.pickImage(source: ImageSource.gallery);
 
     if (pickedFile != null) {
       final File imageFile = File(pickedFile.path);
-      final String fileName = basename(imageFile.path);
 
-      final request = http.MultipartRequest(
-        'POST',
-        Uri.parse(backendUploadUrl),
-      );
-
-      request.files.add(await http.MultipartFile.fromPath('file', imageFile.path));
-
-      final response = await request.send();
-
-      if (response.statusCode == 200) {
-        final respStr = await response.stream.bytesToString();
-        final data = jsonDecode(respStr);
-        final imageUrl = data['url'];
-        uploadedImageUrls.add(imageUrl);
-        print('✅ Image uploaded: $imageUrl');
+      final url = await uploadImage(imageFile);
+      
+      if (url != null) {
+        uploadedImageUrls.add(url);
+        print('✅ Image uploaded and enhanced: $url');
       } else {
-        print('❌ Upload failed: ${response.statusCode}');
+        print('❌ Upload failed');
       }
     } else {
       print("No image selected");
     }
   }
   
-  // Upload a single image via backend with better error handling
-  static Future<String?> uploadViaBackend(File imageFile) async {
-    try {
-      // Check file size before uploading
-      if (!await isValidFileSize(imageFile)) {
-        print('File too large: ${imageFile.path}');
-        return null;
+  // Upload a single image to the backend with authentication
+  static Future<String?> uploadImage(File imageFile, {String? authToken}) async {
+    final uri = Uri.parse('${ApiConfig.baseUrl}/upload');
+
+    // Create multipart request
+    final request = http.MultipartRequest('POST', uri)
+      ..files.add(await http.MultipartFile.fromPath('file', imageFile.path));
+    
+    // Add authentication headers if token is provided
+    if (authToken != null && authToken.isNotEmpty) {
+      request.headers['Authorization'] = 'Bearer $authToken';
+    } else {
+      // Try to get token from secure storage or other auth service
+      try {
+        final token = await _getAuthToken();
+        if (token != null && token.isNotEmpty) {
+          request.headers['Authorization'] = 'Bearer $token';
+        }
+      } catch (e) {
+        print('Error retrieving auth token: $e');
       }
-      
-      // Create multipart request
-      final request = http.MultipartRequest('POST', Uri.parse(backendUploadUrl));
-      
-      // Add file to request
-      request.files.add(await http.MultipartFile.fromPath(
-        'file', 
-        imageFile.path,
-        filename: basename(imageFile.path),
-      ));
-      
-      // Send request
+    }
+
+    try {
       final response = await request.send();
-      
+
       if (response.statusCode == 200) {
         final respStr = await response.stream.bytesToString();
         final data = jsonDecode(respStr);
-        return data['url'];
+        return data['url']; // Enhanced Cloudinary image URL
+      } else if (response.statusCode == 401) {
+        print("Authentication failed: Please log in again");
+        return null;
       } else {
-        print('Backend upload failed with status: ${response.statusCode}');
-        // Fallback to direct Cloudinary upload
-        return uploadToCloudinary(imageFile);
-      }
-    } catch (e) {
-      print('Backend upload error: $e');
-      // Fallback to direct Cloudinary upload
-      return uploadToCloudinary(imageFile);
-    }
-  }
-  
-  // Direct upload to Cloudinary with better error handling (now used as fallback)
-  static Future<String?> uploadToCloudinary(File imageFile) async {
-    try {
-      // Check file size before uploading
-      if (!await isValidFileSize(imageFile)) {
-        print('File too large: ${imageFile.path}');
+        final errorResp = await response.stream.bytesToString();
+        print("Upload failed: ${response.statusCode}, Error: $errorResp");
         return null;
       }
-
-      CloudinaryResponse response = await cloudinary.uploadFile(
-        CloudinaryFile.fromFile(
-          imageFile.path,
-          folder: 'mipripity_listings',
-          resourceType: CloudinaryResourceType.Image,
-        ),
-      );
-      
-      return response.secureUrl;
     } catch (e) {
-      print('Cloudinary upload error: $e');
-      // Fallback to ImgBB if Cloudinary fails
-      return uploadImage(imageFile);
+      print("Upload exception: $e");
+      return null;
     }
   }
   
-  // Upload multiple images via backend with comprehensive error handling
+  // Helper method to get auth token from secure storage or other service
+  static Future<String?> _getAuthToken() async {
+    // Implement based on your app's authentication system
+    // For example, you might use flutter_secure_storage to get the token
+    // This is a placeholder implementation
+    try {
+      // TODO: Replace with your actual token retrieval logic
+      // Example:
+      // final storage = FlutterSecureStorage();
+      // return await storage.read(key: 'auth_token');
+      return null;
+    } catch (e) {
+      print('Error getting auth token: $e');
+      return null;
+    }
+  }
+  
+  // Upload multiple images with comprehensive error handling
   static Future<UploadResult> uploadMultipleToCloudinary(List<String> filePaths, {int maxRetries = 2}) async {
     try {
       // Safety check - return empty result if paths is null or empty
@@ -235,7 +208,7 @@ class ImageUploadService {
       );
       
     } catch (e) {
-      print('Exception in uploadMultipleToCloudinary: $e');
+      print('Exception in uploadMultipleImages: $e');
       // Return any existing URLs on error and detailed error information
       return UploadResult(
         successUrls: filePaths.where((path) => 
@@ -250,7 +223,7 @@ class ImageUploadService {
     }
   }
 
-  // Helper method to handle retries for a single file upload - now using backend upload
+  // Helper method to handle retries for a single file upload
   static Future<String?> _uploadWithRetry(String filePath, int maxRetries) async {
     int attempts = 0;
     
@@ -288,7 +261,7 @@ class ImageUploadService {
     while (attempts <= maxRetries) {
       try {
         // Attempt to upload
-        final url = await uploadViaBackend(fileToUpload);
+        final url = await uploadImage(fileToUpload);
         if (url != null) {
           return url;
         }
@@ -320,7 +293,7 @@ class ImageUploadService {
     return validExtensions.contains(ext);
   }
   
-  // Public method to validate image files (used by ProfilePhotoScreen)
+  // Public method to validate image files
   static bool isValidImageFile(File imageFile) {
     final filePath = imageFile.path;
     final validExtensions = ['.jpg', '.jpeg', '.png', '.gif', '.webp', '.bmp', '.heic'];
@@ -337,40 +310,6 @@ class ImageUploadService {
     } catch (e) {
       print('Error checking file size: $e');
       return false;
-    }
-  }
-
-  // Legacy upload a single image to ImgBB
-  static Future<String?> uploadImage(File imageFile) async {
-    try {
-      final uri = Uri.parse('$uploadUrl?key=$apiKey');
-      final request = http.MultipartRequest('POST', uri);
-      
-      final fileStream = http.ByteStream(imageFile.openRead());
-      final fileLength = await imageFile.length();
-      
-      final multipartFile = http.MultipartFile(
-        'image',
-        fileStream,
-        fileLength,
-        filename: basename(imageFile.path),
-      );
-      
-      request.files.add(multipartFile);
-      
-      final response = await request.send();
-      final responseData = await response.stream.bytesToString();
-      final jsonData = jsonDecode(responseData);
-      
-      if (response.statusCode == 200 && jsonData['success'] == true) {
-        return jsonData['data']['url'];
-      } else {
-        print('Image upload failed: ${jsonData['error']?['message'] ?? 'Unknown error'}');
-        return null;
-      }
-    } catch (e) {
-      print('Exception during image upload: $e');
-      return null;
     }
   }
 

@@ -725,13 +725,43 @@ Future<void> _loadUserData() async {
                         Padding(
                           padding: const EdgeInsets.all(16.0),
                           child: Center(
-                            child: ElevatedButton.icon(
+                            child: ElevatedButton(
                               onPressed: () => _saveUserSettings('notifications'),
-                              icon: const Icon(Icons.save),
-                              label: const Text('Save Notification Preferences'),
                               style: ElevatedButton.styleFrom(
-                                backgroundColor: const Color(0xFFF39322),
-                                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                                padding: EdgeInsets.zero,
+                                backgroundColor: Colors.transparent,
+                                shadowColor: Colors.transparent,
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(8),
+                                ),
+                              ),
+                              child: Ink(
+                                decoration: BoxDecoration(
+                                  gradient: const LinearGradient(
+                                    colors: [
+                                      Color(0xFFF39322),
+                                      Color(0xFFFFD700),
+                                    ],
+                                  ),
+                                  borderRadius: BorderRadius.circular(8),
+                                ),
+                                child: Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                                  child: Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: const [
+                                      Icon(Icons.save, color: Colors.white),
+                                      SizedBox(width: 8),
+                                      Text(
+                                        'Save Notification Preferences',
+                                        style: TextStyle(
+                                          color: Colors.white,
+                                          fontWeight: FontWeight.bold,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
                               ),
                             ),
                           ),
@@ -804,13 +834,43 @@ Future<void> _loadUserData() async {
                         Padding(
                           padding: const EdgeInsets.all(16.0),
                           child: Center(
-                            child: ElevatedButton.icon(
+                            child: ElevatedButton(
                               onPressed: () => _saveUserSettings('app'),
-                              icon: const Icon(Icons.save),
-                              label: const Text('Save App Preferences'),
                               style: ElevatedButton.styleFrom(
-                                backgroundColor: const Color(0xFFF39322),
-                                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                                padding: EdgeInsets.zero,
+                                backgroundColor: Colors.transparent,
+                                shadowColor: Colors.transparent,
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(8),
+                                ),
+                              ),
+                              child: Ink(
+                                decoration: BoxDecoration(
+                                  gradient: const LinearGradient(
+                                    colors: [
+                                      Color(0xFFF39322),
+                                      Color(0xFFFFD700),
+                                    ],
+                                  ),
+                                  borderRadius: BorderRadius.circular(8),
+                                ),
+                                child: Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                                  child: Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: const [
+                                      Icon(Icons.save, color: Colors.white),
+                                      SizedBox(width: 8),
+                                      Text(
+                                        'Save App Preferences',
+                                        style: TextStyle(
+                                          color: Colors.white,
+                                          fontWeight: FontWeight.bold,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
                               ),
                             ),
                           ),
@@ -866,13 +926,43 @@ Future<void> _loadUserData() async {
                     Padding(
                       padding: const EdgeInsets.all(16.0),
                       child: Center(
-                        child: ElevatedButton.icon(
+                        child: ElevatedButton(
                           onPressed: () => _saveUserSettings('security'),
-                          icon: const Icon(Icons.save),
-                          label: const Text('Save Security Settings'),
                           style: ElevatedButton.styleFrom(
-                            backgroundColor: const Color(0xFFF39322),
-                            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                            padding: EdgeInsets.zero,
+                            backgroundColor: Colors.transparent,
+                            shadowColor: Colors.transparent,
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                          ),
+                          child: Ink(
+                            decoration: BoxDecoration(
+                              gradient: const LinearGradient(
+                                colors: [
+                                  Color(0xFFF39322),
+                                  Color(0xFFFFD700),
+                                ],
+                              ),
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: const [
+                                  Icon(Icons.save, color: Colors.white),
+                                  SizedBox(width: 8),
+                                  Text(
+                                    'Save Security Settings',
+                                    style: TextStyle(
+                                      color: Colors.white,
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
                           ),
                         ),
                       ),
@@ -1159,17 +1249,38 @@ Future<void> _loadUserData() async {
               ),
               ElevatedButton(
                 onPressed: () {
-                  // Navigate to edit profile
                   _showEditProfileDialog(context);
                 },
                 style: ElevatedButton.styleFrom(
-                  foregroundColor: Colors.white,
-                  backgroundColor: const Color(0xFFF39322),
+                  padding: EdgeInsets.zero, // Important to remove default padding
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(8),
                   ),
+                  backgroundColor: Colors.transparent, // Needed for gradient to show
+                  shadowColor: Colors.transparent,
                 ),
-                child: const Text('Edit Profile'),
+                child: Ink(
+                  decoration: BoxDecoration(
+                    gradient: const LinearGradient(
+                      colors: [
+                        Color(0xFFF39322),
+                        Color(0xFFFFD700),
+                      ],
+                    ),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Container(
+                    alignment: Alignment.center,
+                    constraints: const BoxConstraints(minWidth: 88, minHeight: 40), // Match Material button size
+                    child: const Text(
+                      'Edit Profile',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ),
+                ),
               ),
             ],
           ),
